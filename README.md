@@ -124,6 +124,7 @@ Settings -> Secrets and variables -> Actions -> New repository secret
 - `RADAR_EMAIL_ENABLED`：`auto`、`1` 或 `0`；定时运行默认 `auto`
 - `RADAR_EMAIL_SUBJECT_PREFIX`：邮件标题前缀，默认 `Research Paper Radar`
 - `RADAR_EMAIL_ATTACH_JSON`：是否附带 JSON，默认 `1`
+- `SMTP_PROVIDER`：发件服务预设，可选 `qq`、`163`、`gmail`、`outlook`
 - `SMTP_HOST`：发件 SMTP 服务器地址；也可放在 secrets
 - `SMTP_USERNAME`：发件 SMTP 登录账号；也可放在 secrets
 - `SMTP_PORT`：默认 `587`
@@ -143,26 +144,29 @@ RADAR_EMAIL_TO=你的163收件邮箱@163.com
 RADAR_EMAIL_ENABLED=auto
 ```
 
-但 GitHub Actions 不能凭空发邮件。若需要定时邮件通知，还必须额外配置一个发件 SMTP 通道，可以是 163 发件邮箱，也可以是其他专门的发件邮箱或 SMTP 服务。例如使用某个发件邮箱时：
+但 GitHub Actions 不能凭空发邮件。若需要定时邮件通知，还必须额外配置一个发件 SMTP 通道，可以是 QQ 发件邮箱、163 发件邮箱，也可以是其他专门的发件邮箱或 SMTP 服务。例如用 QQ 邮箱发送到 163 收件邮箱：
 
 Repository variables：
 
 ```text
 RADAR_EMAIL_TO=你的163收件邮箱@163.com
-RADAR_EMAIL_FROM=发件邮箱@example.com
+RADAR_EMAIL_FROM=你的QQ邮箱@qq.com
 RADAR_EMAIL_ENABLED=auto
-SMTP_HOST=发件SMTP服务器
-SMTP_USERNAME=发件SMTP账号
-SMTP_PORT=587
-SMTP_USE_TLS=1
-SMTP_USE_SSL=0
+SMTP_PROVIDER=qq
+SMTP_HOST=smtp.qq.com
+SMTP_USERNAME=你的QQ邮箱@qq.com
+SMTP_PORT=465
+SMTP_USE_TLS=0
+SMTP_USE_SSL=1
 ```
 
 Repository secrets：
 
 ```text
-SMTP_PASSWORD=发件SMTP密码或授权码
+SMTP_PASSWORD=QQ邮箱SMTP授权码
 ```
+
+其中 `SMTP_PROVIDER=qq` 可以自动补齐 QQ 的默认 SMTP 设置；仍建议显式保留 `SMTP_HOST=smtp.qq.com`，便于排查配置。
 
 如果也想用 163 作为发件通道，通常是 `SMTP_HOST=smtp.163.com`、`SMTP_PORT=465`、`SMTP_USE_SSL=1`、`SMTP_USE_TLS=0`，并且 `SMTP_PASSWORD` 应使用 163 邮箱的“客户端授权码/SMTP 授权码”，通常不是网页登录密码。需要在 163 邮箱设置中开启 POP3/SMTP/IMAP 服务并生成授权码。
 
@@ -267,6 +271,7 @@ Email delivery is optional and SMTP-based. A recipient address only tells the wo
 - `RADAR_EMAIL_ENABLED` optional, `auto`, `1`, or `0`
 - `RADAR_EMAIL_SUBJECT_PREFIX` optional
 - `RADAR_EMAIL_ATTACH_JSON` optional, defaults to `1`
+- `SMTP_PROVIDER` optional sender preset: `qq`, `163`, `gmail`, or `outlook`
 - `SMTP_HOST` sender SMTP host, optional here or as a secret
 - `SMTP_USERNAME` sender SMTP login, optional here or as a secret
 - `SMTP_PORT` optional, defaults to `587`
@@ -277,7 +282,7 @@ Store sender SMTP credentials as repository secrets:
 
 - `SMTP_PASSWORD`
 
-If 163 Mail is only the recipient inbox, set only `RADAR_EMAIL_TO=<your 163 address>` for that part. To receive scheduled email reports, also configure a sender SMTP provider. If 163 Mail is used as the sender provider, use `SMTP_HOST=smtp.163.com`, `SMTP_PORT=465`, `SMTP_USE_SSL=1`, `SMTP_USE_TLS=0`, and use the 163 SMTP authorization code as `SMTP_PASSWORD`.
+If 163 Mail is only the recipient inbox, set only `RADAR_EMAIL_TO=<your 163 address>` for that part. To receive scheduled email reports, also configure a sender SMTP provider. For QQ Mail sender to a 163 recipient, use `SMTP_PROVIDER=qq`, `SMTP_HOST=smtp.qq.com`, `SMTP_PORT=465`, `SMTP_USE_SSL=1`, `SMTP_USE_TLS=0`, `SMTP_USERNAME=<your QQ email>`, and use the QQ SMTP authorization code as `SMTP_PASSWORD`. If 163 Mail is used as the sender provider, use `SMTP_HOST=smtp.163.com`, `SMTP_PORT=465`, `SMTP_USE_SSL=1`, `SMTP_USE_TLS=0`, and use the 163 SMTP authorization code as `SMTP_PASSWORD`.
 
 The workflow stores outputs under `artifacts/research_paper_radar` and uploads them as a GitHub Actions artifact.
 

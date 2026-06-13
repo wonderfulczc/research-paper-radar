@@ -15,6 +15,12 @@ from radar_state import RADAR_ARTIFACT_DIR
 
 TRUE_VALUES = {"1", "true", "yes", "on"}
 FALSE_VALUES = {"0", "false", "no", "off", "skip"}
+SMTP_PROVIDER_DEFAULTS = {
+    "qq": {"host": "smtp.qq.com", "port": "465", "use_ssl": True, "use_tls": False},
+    "163": {"host": "smtp.163.com", "port": "465", "use_ssl": True, "use_tls": False},
+    "gmail": {"host": "smtp.gmail.com", "port": "587", "use_ssl": False, "use_tls": True},
+    "outlook": {"host": "smtp.office365.com", "port": "587", "use_ssl": False, "use_tls": True},
+}
 
 
 def env(name: str, default: str = "") -> str:
@@ -30,6 +36,82 @@ def env_bool(name: str, default: bool = False) -> bool:
     if value in FALSE_VALUES:
         return False
     return default
+
+
+def env_bool_optional(name: str) -> bool | None:
+    value = env(name).lower()
+    if not value:
+        return None
+    if value in TRUE_VALUES:
+        return True
+    if value in FALSE_VALUES:
+        return False
+    return None
+
+
+def sender_address() -> str:
+    return env("SMTP_USERNAME") or env("RADAR_EMAIL_FROM")
+
+
+def sender_provider() -> str:
+    explicit = env("SMTP_PROVIDER").lower()
+    aliases = {
+        "qqmail": "qq",
+        "qq.com": "qq",
+        "foxmail": "qq",
+        "foxmail.com": "qq",
+        "163.com": "163",
+        "126.com": "163",
+        "yeah.net": "163",
+        "google": "gmail",
+        "gmail.com": "gmail",
+        "office365": "outlook",
+        "hotmail": "outlook",
+        "hotmail.com": "outlook",
+        "live.com": "outlook",
+        "outlook.com": "outlook",
+    }
+    if explicit:
+        return aliases.get(explicit, explicit)
+
+    address = sender_address().lower()
+    if "@" not in address:
+        return ""
+    domain = address.rsplit("@", 1)[-1]
+    return aliases.get(domain, "")
+
+
+def smtp_defaults() -> dict:
+    return SMTP_PROVIDER_DEFAULTS.get(sender_provider(), {})
+
+
+def effective_smtp_host() -> str:
+    return env("SMTP_HOST") or str(smtp_defaults().get("host", ""))
+
+
+def effective_smtp_use_ssl() -> bool:
+    explicit = env_bool_optional("SMTP_USE_SSL")
+    if explicit is not None:
+        return explicit
+    default = smtp_defaults().get("use_ssl")
+    if default is not None:
+        return bool(default)
+    return False
+
+
+def effective_smtp_use_tls(use_ssl: bool) -> bool:
+    explicit = env_bool_optional("SMTP_USE_TLS")
+    if explicit is not None:
+        return explicit
+    default = smtp_defaults().get("use_tls")
+    if default is not None:
+        return bool(default)
+    return not use_ssl
+
+
+def effective_smtp_port(use_ssl: bool) -> int:
+    value = env("SMTP_PORT") or str(smtp_defaults().get("port", ""))
+    return int(value or ("465" if use_ssl else "587"))
 
 
 def split_addresses(value: str) -> list[str]:
@@ -68,7 +150,7 @@ def config_errors(required: bool) -> list[str]:
     errors = []
     if not env("RADAR_EMAIL_TO"):
         errors.append("RADAR_EMAIL_TO (recipient address)")
-    if not env("SMTP_HOST"):
+    if not effective_smtp_host():
         errors.append("SMTP_HOST (sender SMTP server)")
     if not (env("RADAR_EMAIL_FROM") or env("SMTP_USERNAME")):
         errors.append("RADAR_EMAIL_FROM or SMTP_USERNAME (sender address/login)")
@@ -82,7 +164,10 @@ def config_help() -> str:
         "RADAR_EMAIL_TO is only the recipient address. GitHub Actions still needs a sender "
         "delivery channel to send mail: set SMTP_HOST plus RADAR_EMAIL_FROM or SMTP_USERNAME, "
         "and set SMTP_PASSWORD when SMTP_USERNAME is used. If you only want the GitHub artifact, "
-        "set RADAR_EMAIL_ENABLED=0 or run manual workflow with send_email=0."
+        "set RADAR_EMAIL_ENABLED=0 or run manual workflow with send_email=0. For QQ Mail sender "
+        "to a 163 recipient, use SMTP_PROVIDER=qq or SMTP_HOST=smtp.qq.com, SMTP_PORT=465, "
+        "SMTP_USE_SSL=1, SMTP_USE_TLS=0, SMTP_USERNAME=<your QQ email>, and a QQ SMTP authorization "
+        "code as SMTP_PASSWORD."
     )
 
 
@@ -214,13 +299,13 @@ def build_message(report_path: Path, json_path: Path | None, payload: dict) -> E
 
 
 def send_message(message: EmailMessage) -> None:
-    host = env("SMTP_HOST")
-    use_ssl = env_bool("SMTP_USE_SSL", False)
-    port = int(env("SMTP_PORT", "465" if use_ssl else "587"))
+    host = effective_smtp_host()
+    use_ssl = effective_smtp_use_ssl()
+    port = effective_smtp_port(use_ssl)
     timeout = int(env("SMTP_TIMEOUT_SECONDS", "30"))
     username = env("SMTP_USERNAME")
     password = env("SMTP_PASSWORD")
-    use_tls = env_bool("SMTP_USE_TLS", not use_ssl)
+    use_tls = effective_smtp_use_tls(use_ssl)
     context = ssl.create_default_context()
 
     if use_ssl:
