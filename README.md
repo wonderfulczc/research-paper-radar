@@ -20,6 +20,7 @@
 
 - OpenAlex 主检索，无需 API key
 - Semantic Scholar API 按 DOI 补充摘要、引用和开放获取元数据
+- Crossref DOI 元数据作为无 key 摘要兜底源
 - Springer Nature Meta API 补充 Nature/Springer 旗下论文摘要
 - Elsevier API 补充 ScienceDirect/Scopus 元数据与摘要
 - DOI/title-hash 去重，只保存轻量 `doi`、`title_hash`、`feedback`
@@ -89,11 +90,12 @@ python work\three_year_top_scout.py
 | API | 推荐变量名 | 作用 |
 | --- | --- | --- |
 | Semantic Scholar | `SEMANTIC_SCHOLAR_API_KEY` | DOI 元数据、摘要、引用补全；推荐配置，可提高稳定性和限额 |
+| Crossref | 不需要 | DOI 元数据与摘要兜底补全 |
 | Springer Nature | `SPRINGER_NATURE_API_KEY` | Nature/Springer Meta API 摘要补全 |
 | Elsevier | `ELSEVIER_API_KEY` | Scopus / ScienceDirect 元数据与摘要补全 |
 | Elsevier optional | `ELSEVIER_INSTTOKEN` | 机构权限 token，可选 |
 
-OpenAlex 是主检索源，不需要 key。Semantic Scholar 支持无 key 公开调用；如需强制必须使用 key，可设置 `SEMANTIC_SCHOLAR_REQUIRE_KEY=1`。
+OpenAlex 是主检索源，不需要 key。Crossref 是 DOI 摘要兜底源，不需要 key。Semantic Scholar 支持无 key 公开调用；如需强制必须使用 key，可设置 `SEMANTIC_SCHOLAR_REQUIRE_KEY=1`。
 
 ### GitHub Actions 配置
 
@@ -152,6 +154,7 @@ It is not a generic TENG search tool and not a long-form literature review gener
 
 - Uses OpenAlex as the main discovery source; no API key required
 - Enriches DOI records with Semantic Scholar metadata, abstracts, and citation counts
+- Uses Crossref DOI metadata as a no-key abstract fallback
 - Enriches Nature/Springer records with Springer Nature Meta API
 - Enriches Elsevier/ScienceDirect/Scopus records with Elsevier APIs
 - Deduplicates by DOI and normalized-title hash

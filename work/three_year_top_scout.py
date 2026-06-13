@@ -14,6 +14,7 @@ from datetime import date
 from pathlib import Path
 
 from semantic_scholar_enrich import semantic_scholar_enrich_candidates
+from crossref_enrich import crossref_enrich_candidates
 from springer_nature_enrich import springer_nature_enrich_candidates
 from elsevier_enrich import elsevier_enrich_candidates
 from mechanism_terms import MECHANISM_TERMS
@@ -965,6 +966,7 @@ def main():
         query_counts.append(("seed DOI fallback", seed_added))
 
     s2_stats = semantic_scholar_enrich_candidates(items.values())
+    cr_stats = crossref_enrich_candidates(items.values())
     sn_stats = springer_nature_enrich_candidates(items.values())
     els_stats = elsevier_enrich_candidates(items.values())
 
@@ -1030,6 +1032,7 @@ def main():
             "A+C_exception_venues": ["S-tier venues", "IEEE Transactions*"],
         },
         "semantic_scholar_enrichment": s2_stats,
+        "crossref_enrichment": cr_stats,
         "springer_nature_enrichment": sn_stats,
         "elsevier_enrichment": els_stats,
         "recommended": [
@@ -1059,6 +1062,11 @@ def main():
         f"available={s2_stats['available']} authenticated={s2_stats['authenticated']} "
         f"checked={s2_stats['checked']} "
         f"filled_abstracts={s2_stats['filled_abstracts']}"
+    )
+    print(
+        "Crossref enrichment: "
+        f"available={cr_stats['available']} checked={cr_stats['checked']} "
+        f"filled_abstracts={cr_stats['filled_abstracts']}"
     )
     print(
         "Springer Nature enrichment: "
