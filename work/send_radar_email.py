@@ -81,6 +81,15 @@ def config_errors(required: bool) -> list[str]:
     return errors
 
 
+def config_help() -> str:
+    return (
+        "For 163 Mail, set repository variables "
+        "RADAR_EMAIL_TO, RADAR_EMAIL_FROM, SMTP_HOST=smtp.163.com, "
+        "SMTP_USERNAME=<your 163 email>, SMTP_PORT=465, SMTP_USE_SSL=1, "
+        "SMTP_USE_TLS=0, and set repository secret SMTP_PASSWORD to the 163 SMTP authorization code."
+    )
+
+
 def recommendation_lines(payload: dict, limit: int = 10) -> list[str]:
     papers = payload.get("recommended") or payload.get("included") or []
     lines = []
@@ -242,7 +251,7 @@ def main() -> int:
 
     errors = config_errors(required=True)
     if errors:
-        message = "Missing email configuration: " + ", ".join(errors)
+        message = "Missing email configuration: " + ", ".join(errors) + ". " + config_help()
         if required:
             print(f"ERROR: {message}", file=sys.stderr)
             return 2

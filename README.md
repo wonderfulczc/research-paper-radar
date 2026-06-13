@@ -124,15 +124,38 @@ Settings -> Secrets and variables -> Actions -> New repository secret
 - `RADAR_EMAIL_ENABLED`：`auto`、`1` 或 `0`；定时运行默认 `auto`
 - `RADAR_EMAIL_SUBJECT_PREFIX`：邮件标题前缀，默认 `Research Paper Radar`
 - `RADAR_EMAIL_ATTACH_JSON`：是否附带 JSON，默认 `1`
+- `SMTP_HOST`：SMTP 服务器地址；也可放在 secrets
+- `SMTP_USERNAME`：SMTP 登录账号；也可放在 secrets
 - `SMTP_PORT`：默认 `587`
 - `SMTP_USE_TLS`：默认 `1`
 - `SMTP_USE_SSL`：默认 `0`；如使用 465 端口通常设为 `1`
 
 把敏感配置放在 repository secrets：
 
-- `SMTP_HOST`
-- `SMTP_USERNAME`
 - `SMTP_PASSWORD`
+
+163 邮箱推荐配置：
+
+Repository variables：
+
+```text
+RADAR_EMAIL_TO=你的收件邮箱
+RADAR_EMAIL_FROM=你的163邮箱@163.com
+RADAR_EMAIL_ENABLED=auto
+SMTP_HOST=smtp.163.com
+SMTP_USERNAME=你的163邮箱@163.com
+SMTP_PORT=465
+SMTP_USE_TLS=0
+SMTP_USE_SSL=1
+```
+
+Repository secrets：
+
+```text
+SMTP_PASSWORD=163邮箱客户端授权码
+```
+
+注意：`SMTP_PASSWORD` 应使用 163 邮箱的“客户端授权码/SMTP 授权码”，通常不是网页登录密码。需要在 163 邮箱设置中开启 POP3/SMTP/IMAP 服务并生成授权码。
 
 工作流支持：
 
@@ -235,15 +258,17 @@ Email delivery is optional and SMTP-based. Store non-sensitive values as reposit
 - `RADAR_EMAIL_ENABLED` optional, `auto`, `1`, or `0`
 - `RADAR_EMAIL_SUBJECT_PREFIX` optional
 - `RADAR_EMAIL_ATTACH_JSON` optional, defaults to `1`
+- `SMTP_HOST` optional here or as a secret
+- `SMTP_USERNAME` optional here or as a secret
 - `SMTP_PORT` optional, defaults to `587`
 - `SMTP_USE_TLS` optional, defaults to `1`
 - `SMTP_USE_SSL` optional, defaults to `0`
 
 Store SMTP credentials as repository secrets:
 
-- `SMTP_HOST`
-- `SMTP_USERNAME`
 - `SMTP_PASSWORD`
+
+For 163 Mail, use `SMTP_HOST=smtp.163.com`, `SMTP_PORT=465`, `SMTP_USE_SSL=1`, `SMTP_USE_TLS=0`, and use the 163 SMTP authorization code as `SMTP_PASSWORD`.
 
 The workflow stores outputs under `artifacts/research_paper_radar` and uploads them as a GitHub Actions artifact.
 

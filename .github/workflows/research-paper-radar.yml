@@ -49,9 +49,9 @@ jobs:
       RADAR_EMAIL_FROM: ${{ vars.RADAR_EMAIL_FROM }}
       RADAR_EMAIL_SUBJECT_PREFIX: ${{ vars.RADAR_EMAIL_SUBJECT_PREFIX || 'Research Paper Radar' }}
       RADAR_EMAIL_ATTACH_JSON: ${{ vars.RADAR_EMAIL_ATTACH_JSON || '1' }}
-      SMTP_HOST: ${{ secrets.SMTP_HOST }}
+      SMTP_HOST: ${{ secrets.SMTP_HOST || vars.SMTP_HOST }}
       SMTP_PORT: ${{ vars.SMTP_PORT || '587' }}
-      SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+      SMTP_USERNAME: ${{ secrets.SMTP_USERNAME || vars.SMTP_USERNAME }}
       SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
       SMTP_USE_TLS: ${{ vars.SMTP_USE_TLS || '1' }}
       SMTP_USE_SSL: ${{ vars.SMTP_USE_SSL || '0' }}
