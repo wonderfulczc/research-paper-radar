@@ -12,7 +12,7 @@ on:
         required: false
         default: "0"
       send_email:
-        description: "Email report for this manual run: 0 skip, 1 require, auto send if configured"
+        description: "Email report: 0 skip, 1 require sender SMTP, auto send if fully configured"
         required: false
         default: "0"
   schedule:

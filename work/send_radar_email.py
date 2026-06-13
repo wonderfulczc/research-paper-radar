@@ -61,32 +61,28 @@ def enabled_state() -> tuple[bool, bool]:
     if value in TRUE_VALUES:
         return True, True
 
-    required_for_auto = [
-        env("RADAR_EMAIL_TO"),
-        env("SMTP_HOST"),
-    ]
-    return all(required_for_auto), False
+    return not config_errors(required=False), False
 
 
 def config_errors(required: bool) -> list[str]:
     errors = []
     if not env("RADAR_EMAIL_TO"):
-        errors.append("RADAR_EMAIL_TO")
+        errors.append("RADAR_EMAIL_TO (recipient address)")
     if not env("SMTP_HOST"):
-        errors.append("SMTP_HOST")
+        errors.append("SMTP_HOST (sender SMTP server)")
     if not (env("RADAR_EMAIL_FROM") or env("SMTP_USERNAME")):
-        errors.append("RADAR_EMAIL_FROM or SMTP_USERNAME")
-    if env("SMTP_USERNAME") and not env("SMTP_PASSWORD") and required:
-        errors.append("SMTP_PASSWORD")
+        errors.append("RADAR_EMAIL_FROM or SMTP_USERNAME (sender address/login)")
+    if env("SMTP_USERNAME") and not env("SMTP_PASSWORD"):
+        errors.append("SMTP_PASSWORD (sender SMTP password/token)")
     return errors
 
 
 def config_help() -> str:
     return (
-        "For 163 Mail, set repository variables "
-        "RADAR_EMAIL_TO, RADAR_EMAIL_FROM, SMTP_HOST=smtp.163.com, "
-        "SMTP_USERNAME=<your 163 email>, SMTP_PORT=465, SMTP_USE_SSL=1, "
-        "SMTP_USE_TLS=0, and set repository secret SMTP_PASSWORD to the 163 SMTP authorization code."
+        "RADAR_EMAIL_TO is only the recipient address. GitHub Actions still needs a sender "
+        "delivery channel to send mail: set SMTP_HOST plus RADAR_EMAIL_FROM or SMTP_USERNAME, "
+        "and set SMTP_PASSWORD when SMTP_USERNAME is used. If you only want the GitHub artifact, "
+        "set RADAR_EMAIL_ENABLED=0 or run manual workflow with send_email=0."
     )
 
 
@@ -249,7 +245,7 @@ def main() -> int:
         print("Email disabled or not configured; skipping.")
         return 0
 
-    errors = config_errors(required=True)
+    errors = config_errors(required=required)
     if errors:
         message = "Missing email configuration: " + ", ".join(errors) + ". " + config_help()
         if required:

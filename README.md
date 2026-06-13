@@ -113,54 +113,63 @@ Settings -> Secrets and variables -> Actions -> New repository secret
 - `ELSEVIER_API_KEY`
 - `ELSEVIER_INSTTOKEN`（可选）
 
-邮件发送使用 SMTP，默认本地运行不发送。GitHub 定时运行时，若仓库配置了收件人和 SMTP 信息，则自动发送最新 HTML 报告和 JSON 结果。
+邮件发送使用 SMTP，默认本地运行不发送。GitHub 定时运行时，若仓库同时配置了收件人和发件 SMTP 通道，则自动发送最新 HTML 报告和 JSON 结果；只配置收件邮箱时会跳过邮件，仍上传 artifact。
 
 建议把非敏感配置放在 repository variables：
 
-- `RADAR_EMAIL_TO`：收件人，多个邮箱用英文逗号或分号分隔
+- `RADAR_EMAIL_TO`：收件人，多个邮箱用英文逗号或分号分隔；可以是 163、QQ、Gmail 等任意接收邮箱
 - `RADAR_EMAIL_CC`：抄送，可选
 - `RADAR_EMAIL_BCC`：密送，可选
-- `RADAR_EMAIL_FROM`：发件人；不填时默认使用 `SMTP_USERNAME`
+- `RADAR_EMAIL_FROM`：发件人地址；不填时默认使用 `SMTP_USERNAME`
 - `RADAR_EMAIL_ENABLED`：`auto`、`1` 或 `0`；定时运行默认 `auto`
 - `RADAR_EMAIL_SUBJECT_PREFIX`：邮件标题前缀，默认 `Research Paper Radar`
 - `RADAR_EMAIL_ATTACH_JSON`：是否附带 JSON，默认 `1`
-- `SMTP_HOST`：SMTP 服务器地址；也可放在 secrets
-- `SMTP_USERNAME`：SMTP 登录账号；也可放在 secrets
+- `SMTP_HOST`：发件 SMTP 服务器地址；也可放在 secrets
+- `SMTP_USERNAME`：发件 SMTP 登录账号；也可放在 secrets
 - `SMTP_PORT`：默认 `587`
 - `SMTP_USE_TLS`：默认 `1`
 - `SMTP_USE_SSL`：默认 `0`；如使用 465 端口通常设为 `1`
 
 把敏感配置放在 repository secrets：
 
-- `SMTP_PASSWORD`
+- `SMTP_PASSWORD`：发件 SMTP 密码、token 或授权码
 
-163 邮箱推荐配置：
+如果你的 163 邮箱只是接收邮箱，只需要把它填到 `RADAR_EMAIL_TO`，例如：
 
 Repository variables：
 
 ```text
-RADAR_EMAIL_TO=你的收件邮箱
-RADAR_EMAIL_FROM=你的163邮箱@163.com
+RADAR_EMAIL_TO=你的163收件邮箱@163.com
 RADAR_EMAIL_ENABLED=auto
-SMTP_HOST=smtp.163.com
-SMTP_USERNAME=你的163邮箱@163.com
-SMTP_PORT=465
-SMTP_USE_TLS=0
-SMTP_USE_SSL=1
+```
+
+但 GitHub Actions 不能凭空发邮件。若需要定时邮件通知，还必须额外配置一个发件 SMTP 通道，可以是 163 发件邮箱，也可以是其他专门的发件邮箱或 SMTP 服务。例如使用某个发件邮箱时：
+
+Repository variables：
+
+```text
+RADAR_EMAIL_TO=你的163收件邮箱@163.com
+RADAR_EMAIL_FROM=发件邮箱@example.com
+RADAR_EMAIL_ENABLED=auto
+SMTP_HOST=发件SMTP服务器
+SMTP_USERNAME=发件SMTP账号
+SMTP_PORT=587
+SMTP_USE_TLS=1
+SMTP_USE_SSL=0
 ```
 
 Repository secrets：
 
 ```text
-SMTP_PASSWORD=163邮箱客户端授权码
+SMTP_PASSWORD=发件SMTP密码或授权码
 ```
 
-注意：`SMTP_PASSWORD` 应使用 163 邮箱的“客户端授权码/SMTP 授权码”，通常不是网页登录密码。需要在 163 邮箱设置中开启 POP3/SMTP/IMAP 服务并生成授权码。
+如果也想用 163 作为发件通道，通常是 `SMTP_HOST=smtp.163.com`、`SMTP_PORT=465`、`SMTP_USE_SSL=1`、`SMTP_USE_TLS=0`，并且 `SMTP_PASSWORD` 应使用 163 邮箱的“客户端授权码/SMTP 授权码”，通常不是网页登录密码。需要在 163 邮箱设置中开启 POP3/SMTP/IMAP 服务并生成授权码。
 
 工作流支持：
 
 - `workflow_dispatch`：手动运行，可设置 `query_limit`、`show_seen` 和 `send_email`
-- `schedule`：默认每两个月运行一次；配好邮件变量后会发送邮件
+- `schedule`：默认每两个月运行一次；配好收件邮箱和发件 SMTP 通道后会发送邮件
 
 GitHub 运行产物会被上传为 artifact：
 
@@ -249,26 +258,26 @@ Recommended secrets:
 - `ELSEVIER_API_KEY`
 - `ELSEVIER_INSTTOKEN` optional
 
-Email delivery is optional and SMTP-based. Store non-sensitive values as repository variables:
+Email delivery is optional and SMTP-based. A recipient address only tells the workflow where to send the report; GitHub Actions still needs a sender SMTP channel to actually deliver email. Store non-sensitive values as repository variables:
 
-- `RADAR_EMAIL_TO`
+- `RADAR_EMAIL_TO` recipient address; any inbox provider is fine, including 163 Mail
 - `RADAR_EMAIL_CC` optional
 - `RADAR_EMAIL_BCC` optional
-- `RADAR_EMAIL_FROM` optional
+- `RADAR_EMAIL_FROM` sender address, optional when `SMTP_USERNAME` is also the sender address
 - `RADAR_EMAIL_ENABLED` optional, `auto`, `1`, or `0`
 - `RADAR_EMAIL_SUBJECT_PREFIX` optional
 - `RADAR_EMAIL_ATTACH_JSON` optional, defaults to `1`
-- `SMTP_HOST` optional here or as a secret
-- `SMTP_USERNAME` optional here or as a secret
+- `SMTP_HOST` sender SMTP host, optional here or as a secret
+- `SMTP_USERNAME` sender SMTP login, optional here or as a secret
 - `SMTP_PORT` optional, defaults to `587`
 - `SMTP_USE_TLS` optional, defaults to `1`
 - `SMTP_USE_SSL` optional, defaults to `0`
 
-Store SMTP credentials as repository secrets:
+Store sender SMTP credentials as repository secrets:
 
 - `SMTP_PASSWORD`
 
-For 163 Mail, use `SMTP_HOST=smtp.163.com`, `SMTP_PORT=465`, `SMTP_USE_SSL=1`, `SMTP_USE_TLS=0`, and use the 163 SMTP authorization code as `SMTP_PASSWORD`.
+If 163 Mail is only the recipient inbox, set only `RADAR_EMAIL_TO=<your 163 address>` for that part. To receive scheduled email reports, also configure a sender SMTP provider. If 163 Mail is used as the sender provider, use `SMTP_HOST=smtp.163.com`, `SMTP_PORT=465`, `SMTP_USE_SSL=1`, `SMTP_USE_TLS=0`, and use the 163 SMTP authorization code as `SMTP_PASSWORD`.
 
 The workflow stores outputs under `artifacts/research_paper_radar` and uploads them as a GitHub Actions artifact.
 
