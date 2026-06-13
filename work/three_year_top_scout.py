@@ -795,12 +795,13 @@ def render_html(recommended, query_counts, output_path):
   <title>近 3 年击穿放电无线传感顶刊/IEEE 定向核查</title>
   <style>
     body {{ font-family: Arial, "Microsoft YaHei", sans-serif; margin: 24px; color: #18212f; }}
-    .table-scroll-top {{ position:sticky; top:0; z-index:6; width:100%; height:16px; overflow-x:auto; overflow-y:hidden; border:1px solid #d9e0ea; border-bottom:0; background:#f8fafc; }}
+    .table-scroll-top {{ position:sticky; top:0; z-index:8; width:100%; height:16px; overflow-x:auto; overflow-y:hidden; border:1px solid #d9e0ea; border-bottom:0; background:#f8fafc; }}
     .table-scroll-top > div {{ height:1px; }}
     .table-wrap {{ width:100%; overflow-x:auto; border:1px solid #d9e0ea; }}
     table {{ width: 100%; min-width: 2540px; border-collapse: collapse; table-layout: fixed; font-size: 13px; }}
     th, td {{ border: 1px solid #d9e0ea; padding: 8px; vertical-align: top; word-break: normal; overflow-wrap: anywhere; }}
     th {{ background: #eef3f8; }}
+    thead th {{ position:sticky; top:16px; z-index:7; box-shadow:0 1px 0 #d9e0ea, 0 2px 6px rgba(15,23,42,.08); }}
     .title-cell {{ line-height:1.35; }}
     .abstract-cell {{ color:#334155; line-height:1.48; overflow-wrap: normal; }}
     .venue-cell {{ line-height:1.35; }}

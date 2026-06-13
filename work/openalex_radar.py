@@ -905,12 +905,13 @@ def render_html(candidates, exclusions, query_counts, output_path):
     p, li {{ color:#536071; line-height:1.55; }}
     .notice, .summary div {{ border:1px solid #d9e0ea; border-radius:6px; padding:10px 12px; background:#f8fafc; }}
     .summary {{ display:grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap:10px; margin:16px 0 22px; }}
-    .table-scroll-top {{ position:sticky; top:0; z-index:6; width:100%; height:16px; overflow-x:auto; overflow-y:hidden; border:1px solid #d9e0ea; border-bottom:0; background:#f8fafc; }}
+    .table-scroll-top {{ position:sticky; top:0; z-index:8; width:100%; height:16px; overflow-x:auto; overflow-y:hidden; border:1px solid #d9e0ea; border-bottom:0; background:#f8fafc; }}
     .table-scroll-top > div {{ height:1px; }}
     .table-wrap {{ width:100%; overflow-x:auto; border:1px solid #d9e0ea; }}
     table {{ width:100%; min-width:3130px; border-collapse:collapse; table-layout:fixed; font-size:13px; }}
     th, td {{ border:1px solid #d9e0ea; padding:8px; vertical-align:top; word-break:normal; overflow-wrap:anywhere; }}
     th {{ background:#eef3f8; text-align:left; }}
+    thead th {{ position:sticky; top:16px; z-index:7; box-shadow:0 1px 0 #d9e0ea, 0 2px 6px rgba(15,23,42,.08); }}
     .title-cell {{ line-height:1.35; }}
     .abstract-cell {{ color:#334155; line-height:1.48; overflow-wrap:normal; }}
     .venue-cell {{ line-height:1.35; }}
