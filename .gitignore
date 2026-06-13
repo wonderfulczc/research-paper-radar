@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+
+.env
+.venv/
+venv/
+
+artifacts/
+outputs/
+
+work/*_cache.json
+work/openalex_candidates_*.json
+work/three_year_top_scout_*.json
+
+.DS_Store
+Thumbs.db

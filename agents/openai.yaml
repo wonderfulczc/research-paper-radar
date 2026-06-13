@@ -1,0 +1,6 @@
+interface:
+  display_name: "Research Paper Radar"
+  short_description: "Breakdown-discharge sensing literature radar"
+  default_prompt: "Use $research-paper-radar to screen recent papers for breakdown-discharge wireless sensing and produce a compact HTML radar report."
+policy:
+  allow_implicit_invocation: true

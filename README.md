@@ -1,0 +1,217 @@
+# Research Paper Radar / 文献雷达
+
+> Conservative literature radar for breakdown-discharge-based wireless sensing.
+>
+> 面向“基于击穿放电的无线传感技术”的高保守文献雷达。
+
+## 中文说明
+
+### 目标
+
+`research-paper-radar` 是一个 Codex skill 与 GitHub Actions 可运行包，用于检索、筛选和报告与以下方向相关的近年论文：
+
+- 基于击穿放电、气体放电、摩擦诱导电磁波或瞬态电磁信号的无线传感
+- 自供能、无电池、柔性、可穿戴无线传感中可迁移到该课题的机制和系统设计
+- 顶刊、大子刊、强相关工程期刊和 IEEE Transactions 系列中的高价值候选文献
+
+它不是通用 TENG 文献检索器，也不是长篇综述生成器。宁可少推，也不凑数。
+
+### 当前能力
+
+- OpenAlex 主检索，无需 API key
+- Semantic Scholar API 按 DOI 补充摘要、引用和开放获取元数据
+- Springer Nature Meta API 补充 Nature/Springer 旗下论文摘要
+- Elsevier API 补充 ScienceDirect/Scopus 元数据与摘要
+- DOI/title-hash 去重，只保存轻量 `doi`、`title_hash`、`feedback`
+- 生成紧凑 HTML 表格报告和 JSON 运行结果
+- GitHub Actions 支持手动运行和双月定时运行
+
+### 仓库结构
+
+```text
+.
+├── SKILL.md                         # Codex skill entrypoint
+├── agents/                          # Skill metadata
+├── references/                      # Scope, source strategy, rubric, report schema
+├── work/                            # Runnable radar scripts
+│   ├── three_year_top_scout.py       # Main 3-year scout
+│   ├── openalex_radar.py             # Short-window OpenAlex radar
+│   ├── *_enrich.py                   # API enrichment adapters
+│   ├── radar_state.py                # Artifact/state paths and seen index
+│   └── journal_quartiles.csv         # Optional CAS/JCR/Scopus table template
+└── .github/workflows/
+    └── research-paper-radar.yml      # Manual/scheduled GitHub Actions workflow
+```
+
+### 本地运行
+
+Windows 本机默认产物目录：
+
+```text
+D:\PhD\10_vibe项目\research_paper_radar
+```
+
+非 Windows 或 GitHub Actions 默认产物目录：
+
+```text
+artifacts/research_paper_radar
+```
+
+运行：
+
+```powershell
+python -m py_compile work\*.py
+python work\three_year_top_scout.py
+```
+
+小范围测试：
+
+```powershell
+$env:RADAR_QUERY_LIMIT="4"
+$env:OPENALEX_PER_PAGE="8"
+$env:SEMANTIC_SCHOLAR_ENRICH_LIMIT="5"
+$env:SPRINGER_NATURE_ENRICH_LIMIT="5"
+$env:ELSEVIER_ENRICH_LIMIT="5"
+python work\three_year_top_scout.py
+```
+
+调试时显示已检索过的文献：
+
+```powershell
+$env:RADAR_SHOW_SEEN="1"
+python work\three_year_top_scout.py
+```
+
+### API key 配置
+
+脚本会从环境变量读取 API key。不要把 key 写入代码或提交到仓库。
+
+| API | 推荐变量名 | 作用 |
+| --- | --- | --- |
+| Semantic Scholar | `SEMANTIC_SCHOLAR_API_KEY` | DOI 元数据、摘要、引用补全 |
+| Springer Nature | `SPRINGER_NATURE_API_KEY` | Nature/Springer Meta API 摘要补全 |
+| Elsevier | `ELSEVIER_API_KEY` | Scopus / ScienceDirect 元数据与摘要补全 |
+| Elsevier optional | `ELSEVIER_INSTTOKEN` | 机构权限 token，可选 |
+
+OpenAlex 是主检索源，不需要 key。
+
+### GitHub Actions 配置
+
+在 GitHub 仓库中依次进入：
+
+```text
+Settings -> Secrets and variables -> Actions -> New repository secret
+```
+
+添加：
+
+- `SEMANTIC_SCHOLAR_API_KEY`
+- `SPRINGER_NATURE_API_KEY`
+- `ELSEVIER_API_KEY`
+- `ELSEVIER_INSTTOKEN`（可选）
+
+工作流支持：
+
+- `workflow_dispatch`：手动运行，可设置 `query_limit` 和 `show_seen`
+- `schedule`：默认每两个月运行一次
+
+GitHub 运行产物会被上传为 artifact：
+
+```text
+artifacts/research_paper_radar/
+├── state/seen_papers.json
+├── runs/*.json
+├── reports/*.html
+└── cache/*.json
+```
+
+### 反馈说明
+
+HTML 中的反馈按钮可以展示选择状态；自动持久反馈需要额外的 feedback receiver。当前仓库已保留 `feedback` 字段和相关架构说明，但不会把静态 HTML 的点击自动写回 JSON。
+
+### 边界
+
+- 不下载付费全文
+- 不绕过出版商访问限制
+- 不把摘要层面判断当作正式全文阅读结论
+- 不推荐纯 TENG、纯材料、普通 ML 预测或泛高压工程文章，除非它们明确服务于击穿放电无线传感链条
+
+## English
+
+### Purpose
+
+`research-paper-radar` is both a Codex skill package and a runnable GitHub Actions workflow for conservative paper discovery around:
+
+- wireless sensing based on breakdown discharge, gas discharge, friction-induced electromagnetic waves, or transient electromagnetic signals;
+- self-powered, battery-free, flexible, or wearable wireless sensing mechanisms transferable to this topic;
+- high-value candidates from major journals, strong engineering venues, and IEEE Transactions venues.
+
+It is not a generic TENG search tool and not a long-form literature review generator. Precision is preferred over volume.
+
+### What It Does
+
+- Uses OpenAlex as the main discovery source; no API key required
+- Enriches DOI records with Semantic Scholar metadata, abstracts, and citation counts
+- Enriches Nature/Springer records with Springer Nature Meta API
+- Enriches Elsevier/ScienceDirect/Scopus records with Elsevier APIs
+- Deduplicates by DOI and normalized-title hash
+- Stores only lightweight seen-state fields: `doi`, `title_hash`, and `feedback`
+- Produces compact HTML reports and machine-readable JSON
+- Runs locally or through GitHub Actions
+
+### Local Usage
+
+Compile and run:
+
+```bash
+python -m py_compile work/*.py
+python work/three_year_top_scout.py
+```
+
+Quick test:
+
+```bash
+RADAR_QUERY_LIMIT=4 \
+OPENALEX_PER_PAGE=8 \
+SEMANTIC_SCHOLAR_ENRICH_LIMIT=5 \
+SPRINGER_NATURE_ENRICH_LIMIT=5 \
+ELSEVIER_ENRICH_LIMIT=5 \
+python work/three_year_top_scout.py
+```
+
+Show already-seen papers for debugging:
+
+```bash
+RADAR_SHOW_SEEN=1 python work/three_year_top_scout.py
+```
+
+### GitHub Actions Secrets
+
+Configure repository secrets under:
+
+```text
+Settings -> Secrets and variables -> Actions
+```
+
+Recommended secrets:
+
+- `SEMANTIC_SCHOLAR_API_KEY`
+- `SPRINGER_NATURE_API_KEY`
+- `ELSEVIER_API_KEY`
+- `ELSEVIER_INSTTOKEN` optional
+
+The workflow stores outputs under `artifacts/research_paper_radar` and uploads them as a GitHub Actions artifact.
+
+### Installing as a Codex Skill
+
+For local Codex use, install the repository root as a skill directory named:
+
+```text
+research-paper-radar
+```
+
+The root `SKILL.md` is the skill entrypoint, and `references/` contains the detailed topic profile, source strategy, screening rubric, report schema, and feedback architecture.
+
+### Evidence Boundary
+
+The radar uses metadata, abstracts, DOI pages, and publisher metadata. It does not download paid full text, bypass access restrictions, or treat abstract-level screening as final paper reading.

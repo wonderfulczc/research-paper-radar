@@ -1,0 +1,60 @@
+name: research-paper-radar
+
+on:
+  workflow_dispatch:
+    inputs:
+      show_seen:
+        description: "Show papers already present in the seen index"
+        required: false
+        default: "0"
+      query_limit:
+        description: "Limit OpenAlex query count for quick tests; 0 means all"
+        required: false
+        default: "0"
+  schedule:
+    - cron: "0 1 1 */2 *"
+
+permissions:
+  contents: read
+
+jobs:
+  radar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      RADAR_ARTIFACT_DIR: artifacts/research_paper_radar
+      RADAR_SHOW_SEEN: ${{ github.event.inputs.show_seen || '0' }}
+      RADAR_QUERY_LIMIT: ${{ github.event.inputs.query_limit || '0' }}
+      SEMANTIC_SCHOLAR_API_KEY: ${{ secrets.SEMANTIC_SCHOLAR_API_KEY }}
+      SPRINGER_NATURE_API_KEY: ${{ secrets.SPRINGER_NATURE_API_KEY }}
+      ELSEVIER_API_KEY: ${{ secrets.ELSEVIER_API_KEY }}
+      ELSEVIER_INSTTOKEN: ${{ secrets.ELSEVIER_INSTTOKEN }}
+      SEMANTIC_SCHOLAR_ENRICH_LIMIT: "30"
+      SPRINGER_NATURE_ENRICH_LIMIT: "20"
+      ELSEVIER_ENRICH_LIMIT: "20"
+      OPENALEX_TIMEOUT_SECONDS: "15"
+      OPENALEX_RETRIES: "1"
+      OPENALEX_MAX_TIMEOUTS: "4"
+      CAS_PARTITION_MODE: "off"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Compile scripts
+        run: python -m py_compile work/*.py
+
+      - name: Run three-year radar
+        run: python work/three_year_top_scout.py
+
+      - name: Upload radar artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: research-paper-radar-${{ github.run_id }}
+          path: artifacts/research_paper_radar
+          if-no-files-found: error
