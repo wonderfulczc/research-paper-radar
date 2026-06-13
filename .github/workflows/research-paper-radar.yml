@@ -22,6 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
       RADAR_ARTIFACT_DIR: artifacts/research_paper_radar
       RADAR_SHOW_SEEN: ${{ github.event.inputs.show_seen || '0' }}
       RADAR_QUERY_LIMIT: ${{ github.event.inputs.query_limit || '0' }}
@@ -39,10 +40,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
@@ -53,7 +54,7 @@ jobs:
         run: python work/three_year_top_scout.py
 
       - name: Upload radar artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: research-paper-radar-${{ github.run_id }}
           path: artifacts/research_paper_radar

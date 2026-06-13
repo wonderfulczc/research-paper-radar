@@ -767,16 +767,16 @@ def render_html(recommended, query_counts, output_path):
             "<tr>"
             f"<td>{idx}</td>"
             f"<td>{html.escape(c.level)}</td>"
-            f"<td>{title}</td>"
-            f"<td>{html.escape(c.abstract or '未获取到摘要')}</td>"
-            f"<td>{html.escape(c.venue)}</td>"
+            f'<td class="title-cell">{title}</td>'
+            f'<td class="abstract-cell">{html.escape(c.abstract or "未获取到摘要")}</td>'
+            f'<td class="venue-cell">{html.escape(c.venue)}</td>'
             f"<td>{html.escape(c.date[:4])}</td>"
             f"<td>{html.escape(c.mechanism_pair)}</td>"
             f"<td>{html.escape(venue_priority_label(c.venue_priority))}</td>"
-            f"<td>{doi_html}</td>"
+            f'<td class="doi-cell">{doi_html}</td>'
             f"<td>{c.relevance}</td>"
             f"<td>{c.novelty}</td>"
-            f"<td>{html.escape(c.reason)}</td>"
+            f'<td class="judgment-cell">{html.escape(c.reason)}</td>'
             f"{feedback_buttons(paper_id)}"
             "</tr>"
         )
@@ -794,9 +794,15 @@ def render_html(recommended, query_counts, output_path):
   <title>近 3 年击穿放电无线传感顶刊/IEEE 定向核查</title>
   <style>
     body {{ font-family: Arial, "Microsoft YaHei", sans-serif; margin: 24px; color: #18212f; }}
-    table {{ width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 13px; }}
-    th, td {{ border: 1px solid #d9e0ea; padding: 8px; vertical-align: top; word-break: break-word; }}
+    .table-wrap {{ width:100%; overflow-x:auto; border:1px solid #d9e0ea; }}
+    table {{ width: 100%; min-width: 2540px; border-collapse: collapse; table-layout: fixed; font-size: 13px; }}
+    th, td {{ border: 1px solid #d9e0ea; padding: 8px; vertical-align: top; word-break: normal; overflow-wrap: anywhere; }}
     th {{ background: #eef3f8; }}
+    .title-cell {{ line-height:1.35; }}
+    .abstract-cell {{ color:#334155; line-height:1.48; overflow-wrap: normal; }}
+    .venue-cell {{ line-height:1.35; }}
+    .doi-cell {{ font-size:12px; line-height:1.35; }}
+    .judgment-cell {{ line-height:1.45; }}
     .notice {{ border: 1px solid #d9e0ea; background: #f8fafc; padding: 10px 12px; border-radius: 6px; }}
     .feedback button {{ display:inline-block; margin:0 4px 5px 0; border:1px solid #9bb8e8; border-radius:4px; padding:3px 6px; color:#1f5fbf; background:#f7fbff; cursor:pointer; font:inherit; line-height:1.2; }}
     .feedback button[data-action="extremely_related"] {{ --active-bg:#dff8ea; --active-border:#239354; --active-ink:#0f6537; }}
@@ -814,10 +820,27 @@ def render_html(recommended, query_counts, output_path):
   <p>报告 ID：{REPORT_ID}｜窗口：{START.isoformat()} 至 {TODAY.isoformat()}</p>
   <div class="notice">只展示通过严格门槛的推荐论文；非推荐样例不再列出。机制筛选按 A=自供能/摩擦/triboelectric 激发、B=击穿放电/电磁波生成、C=无线通信/传感/可穿戴系统功能执行，优先 A+B/B+C，A+C 降权且仅在 S 级顶刊和 IEEE Transactions 例外。{venue_rule} 检索源为 OpenAlex public API，并在配置 API key 时用 Semantic Scholar、Springer Nature Meta API 与 Elsevier API 补全 DOI 摘要/引用元数据；结论为元数据/摘要层面初筛。</div>
   <p>推荐数量：{len(recommended)}；其中 S/A/IEEE 优先 venue：{priority_count}；已见去重隐藏：{seen_filtered_count}。去重索引：{html.escape(str(seen_index_path))}</p>
+  <div class="table-wrap">
   <table>
-    <thead><tr><th style="width:42px">序号</th><th style="width:70px">等级</th><th style="width:250px">标题</th><th>摘要</th><th style="width:130px">期刊/会议</th><th style="width:55px">年份</th><th style="width:72px">机制链</th><th style="width:120px">期刊优先级</th><th style="width:110px">DOI</th><th style="width:70px">相关性</th><th style="width:70px">创新性</th><th style="width:260px">综合判断</th><th style="width:150px">用户反馈</th></tr></thead>
+    <colgroup>
+      <col style="width:52px">
+      <col style="width:80px">
+      <col style="width:320px">
+      <col style="width:720px">
+      <col style="width:190px">
+      <col style="width:70px">
+      <col style="width:90px">
+      <col style="width:150px">
+      <col style="width:170px">
+      <col style="width:70px">
+      <col style="width:70px">
+      <col style="width:360px">
+      <col style="width:240px">
+    </colgroup>
+    <thead><tr><th>序号</th><th>等级</th><th>标题</th><th>摘要</th><th>期刊/会议</th><th>年份</th><th>机制链</th><th>期刊优先级</th><th>DOI</th><th>相关性</th><th>创新性</th><th>综合判断</th><th>用户反馈</th></tr></thead>
     <tbody>{''.join(rows)}</tbody>
   </table>
+  </div>
   <h2>查询计数</h2>
   <ul>{query_items}</ul>
 <script>

@@ -830,17 +830,17 @@ def render_html(candidates, exclusions, query_counts, output_path):
             f"<td>{idx}</td>"
             f"<td class=\"level\">{html.escape(c.level)}</td>"
             f"<td>{html.escape(c.paper_type)}</td>"
-            f"<td>{title}</td>"
+            f"<td class=\"title-cell\">{title}</td>"
             f"<td class=\"abstract-cell\">{html.escape(abstract_text)}</td>"
-            f"<td>{html.escape(c.venue)}</td>"
+            f"<td class=\"venue-cell\">{html.escape(c.venue)}</td>"
             f"<td>{html.escape(c.date[:4])}</td>"
-            f"<td>{doi_html}</td>"
+            f"<td class=\"doi-cell\">{doi_html}</td>"
             f"<td>{evidence}</td>"
             f"<td>{c.relevance}</td>"
             f"<td>{c.novelty}</td>"
-            f"<td>{html.escape(summary)}</td>"
-            f"<td>{html.escape(c.novelty_reason)}</td>"
-            f"<td>{html.escape(c.borrow)}</td>"
+            f"<td class=\"judgment-cell\">{html.escape(summary)}</td>"
+            f"<td class=\"judgment-cell\">{html.escape(c.novelty_reason)}</td>"
+            f"<td class=\"judgment-cell\">{html.escape(c.borrow)}</td>"
             f"{feedback_buttons(paper_id)}"
             "</tr>"
         )
@@ -862,13 +862,13 @@ def render_html(candidates, exclusions, query_counts, output_path):
             f"<td>{idx}</td>"
             "<td class=\"excluded-status\">已剔除<br><span class=\"small\">非推荐</span></td>"
             f"<td>{html.escape(c.paper_type)}</td>"
-            f"<td>{title}</td>"
+            f"<td class=\"title-cell\">{title}</td>"
             f"<td class=\"abstract-cell\">{html.escape(abstract_text)}</td>"
-            f"<td>{html.escape(c.venue)}</td>"
+            f"<td class=\"venue-cell\">{html.escape(c.venue)}</td>"
             f"<td>{html.escape(c.date[:4])}</td>"
-            f"<td>{doi_html}</td>"
+            f"<td class=\"doi-cell\">{doi_html}</td>"
             f"<td>{c.relevance}</td>"
-            f"<td>{html.escape(judgment)}</td>"
+            f"<td class=\"judgment-cell\">{html.escape(judgment)}</td>"
             f"{feedback_buttons(paper_id)}"
             "</tr>"
         )
@@ -904,10 +904,15 @@ def render_html(candidates, exclusions, query_counts, output_path):
     p, li {{ color:#536071; line-height:1.55; }}
     .notice, .summary div {{ border:1px solid #d9e0ea; border-radius:6px; padding:10px 12px; background:#f8fafc; }}
     .summary {{ display:grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap:10px; margin:16px 0 22px; }}
-    table {{ width:100%; border-collapse:collapse; table-layout:fixed; font-size:13px; }}
-    th, td {{ border:1px solid #d9e0ea; padding:8px; vertical-align:top; word-break:break-word; }}
+    .table-wrap {{ width:100%; overflow-x:auto; border:1px solid #d9e0ea; }}
+    table {{ width:100%; min-width:3130px; border-collapse:collapse; table-layout:fixed; font-size:13px; }}
+    th, td {{ border:1px solid #d9e0ea; padding:8px; vertical-align:top; word-break:normal; overflow-wrap:anywhere; }}
     th {{ background:#eef3f8; text-align:left; }}
-    .abstract-cell {{ color:#334155; line-height:1.45; }}
+    .title-cell {{ line-height:1.35; }}
+    .abstract-cell {{ color:#334155; line-height:1.48; overflow-wrap:normal; }}
+    .venue-cell {{ line-height:1.35; }}
+    .doi-cell {{ font-size:12px; line-height:1.35; }}
+    .judgment-cell {{ line-height:1.45; }}
     .level {{ font-weight:700; }}
     .excluded-row td {{ background:#fbfcfe; }}
     .excluded-status {{ color:#7f1d1d; font-weight:700; }}
@@ -940,12 +945,31 @@ def render_html(candidates, exclusions, query_counts, output_path):
     <div><b>反馈状态</b><br>未配置反馈端点；按钮原地更新，不跳转，可反复修改</div>
   </section>
   <h2>推荐文献（仅含有参考性论文）</h2>
+  <div class="table-wrap">
   <table>
+    <colgroup>
+      <col style="width:52px">
+      <col style="width:90px">
+      <col style="width:140px">
+      <col style="width:320px">
+      <col style="width:720px">
+      <col style="width:180px">
+      <col style="width:70px">
+      <col style="width:170px">
+      <col style="width:110px">
+      <col style="width:80px">
+      <col style="width:80px">
+      <col style="width:420px">
+      <col style="width:220px">
+      <col style="width:240px">
+      <col style="width:240px">
+    </colgroup>
     <thead><tr>
-      <th style="width:42px">序号</th><th style="width:72px">推荐等级</th><th style="width:110px">文献类型</th><th style="width:210px">标题</th><th style="width:360px">摘要</th><th style="width:120px">期刊/会议</th><th style="width:55px">年份</th><th style="width:100px">DOI</th><th style="width:90px">证据级别</th><th style="width:72px">相关性评分</th><th style="width:72px">创新性评分</th><th style="width:260px">综合判断</th><th style="width:160px">创新点判断</th><th style="width:170px">可借鉴点</th><th style="width:150px">用户反馈</th>
+      <th>序号</th><th>推荐等级</th><th>文献类型</th><th>标题</th><th>摘要</th><th>期刊/会议</th><th>年份</th><th>DOI</th><th>证据级别</th><th>相关性评分</th><th>创新性评分</th><th>综合判断</th><th>创新点判断</th><th>可借鉴点</th><th>用户反馈</th>
     </tr></thead>
     <tbody>{''.join(rows)}</tbody>
   </table>
+  </div>
   <section class="notice">
     <b>非推荐项：</b>按用户要求不再展示非推荐样例；若主表为空，表示本轮严格筛选未确认可推荐论文。
   </section>
