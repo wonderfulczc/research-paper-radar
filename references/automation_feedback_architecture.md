@@ -149,10 +149,18 @@ For major topic-boundary changes, summarize the proposed rule update and ask for
 Email should include:
 
 - a short subject with report ID and date range
-- a one-line body saying the radar HTML is attached
-- the single HTML report attachment
+- a concise body saying the radar HTML is attached and listing the main run counts
+- the HTML report attachment
+- the JSON run result attachment when configured
 
-Do not duplicate paper summaries in the email body.
+Email delivery must be optional and configuration-driven:
+
+- local/manual runs skip email unless SMTP and recipient environment variables are provided
+- GitHub scheduled runs can send email when repository variables/secrets are configured
+- recipient addresses and SMTP credentials must never be hardcoded in source files
+- SMTP passwords and usernames belong in repository secrets, not variables
+
+The sender should tolerate missing email configuration by skipping delivery unless email is explicitly required.
 
 ## Security and Privacy Notes
 

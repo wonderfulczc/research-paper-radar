@@ -11,6 +11,10 @@ on:
         description: "Limit OpenAlex query count for quick tests; 0 means all"
         required: false
         default: "0"
+      send_email:
+        description: "Email report for this manual run: 0 skip, 1 require, auto send if configured"
+        required: false
+        default: "0"
   schedule:
     - cron: "0 1 1 */2 *"
 
@@ -38,6 +42,19 @@ jobs:
       OPENALEX_RETRIES: "1"
       OPENALEX_MAX_TIMEOUTS: "4"
       CAS_PARTITION_MODE: "off"
+      RADAR_EMAIL_ENABLED: ${{ github.event_name == 'schedule' && (vars.RADAR_EMAIL_ENABLED || 'auto') || (github.event.inputs.send_email || '0') }}
+      RADAR_EMAIL_TO: ${{ vars.RADAR_EMAIL_TO }}
+      RADAR_EMAIL_CC: ${{ vars.RADAR_EMAIL_CC }}
+      RADAR_EMAIL_BCC: ${{ vars.RADAR_EMAIL_BCC }}
+      RADAR_EMAIL_FROM: ${{ vars.RADAR_EMAIL_FROM }}
+      RADAR_EMAIL_SUBJECT_PREFIX: ${{ vars.RADAR_EMAIL_SUBJECT_PREFIX || 'Research Paper Radar' }}
+      RADAR_EMAIL_ATTACH_JSON: ${{ vars.RADAR_EMAIL_ATTACH_JSON || '1' }}
+      SMTP_HOST: ${{ secrets.SMTP_HOST }}
+      SMTP_PORT: ${{ vars.SMTP_PORT || '587' }}
+      SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      SMTP_USE_TLS: ${{ vars.SMTP_USE_TLS || '1' }}
+      SMTP_USE_SSL: ${{ vars.SMTP_USE_SSL || '0' }}
 
     steps:
       - name: Check out repository
@@ -60,3 +77,6 @@ jobs:
           name: research-paper-radar-${{ github.run_id }}
           path: artifacts/research_paper_radar
           if-no-files-found: error
+
+      - name: Send email report
+        run: python work/send_radar_email.py

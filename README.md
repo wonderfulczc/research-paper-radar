@@ -26,6 +26,7 @@
 - DOI/title-hash 去重，只保存轻量 `doi`、`title_hash`、`feedback`
 - 生成紧凑 HTML 表格报告和 JSON 运行结果
 - GitHub Actions 支持手动运行和双月定时运行
+- GitHub Actions 可选 SMTP 邮件发送；本地默认不发送邮件
 
 ### 仓库结构
 
@@ -105,17 +106,38 @@ OpenAlex 是主检索源，不需要 key。Crossref 是 DOI 摘要兜底源，�
 Settings -> Secrets and variables -> Actions -> New repository secret
 ```
 
-添加：
+添加文献 API secrets：
 
 - `SEMANTIC_SCHOLAR_API_KEY`（推荐；支持无 key 公开兜底）
 - `SPRINGER_NATURE_API_KEY`
 - `ELSEVIER_API_KEY`
 - `ELSEVIER_INSTTOKEN`（可选）
 
+邮件发送使用 SMTP，默认本地运行不发送。GitHub 定时运行时，若仓库配置了收件人和 SMTP 信息，则自动发送最新 HTML 报告和 JSON 结果。
+
+建议把非敏感配置放在 repository variables：
+
+- `RADAR_EMAIL_TO`：收件人，多个邮箱用英文逗号或分号分隔
+- `RADAR_EMAIL_CC`：抄送，可选
+- `RADAR_EMAIL_BCC`：密送，可选
+- `RADAR_EMAIL_FROM`：发件人；不填时默认使用 `SMTP_USERNAME`
+- `RADAR_EMAIL_ENABLED`：`auto`、`1` 或 `0`；定时运行默认 `auto`
+- `RADAR_EMAIL_SUBJECT_PREFIX`：邮件标题前缀，默认 `Research Paper Radar`
+- `RADAR_EMAIL_ATTACH_JSON`：是否附带 JSON，默认 `1`
+- `SMTP_PORT`：默认 `587`
+- `SMTP_USE_TLS`：默认 `1`
+- `SMTP_USE_SSL`：默认 `0`；如使用 465 端口通常设为 `1`
+
+把敏感配置放在 repository secrets：
+
+- `SMTP_HOST`
+- `SMTP_USERNAME`
+- `SMTP_PASSWORD`
+
 工作流支持：
 
-- `workflow_dispatch`：手动运行，可设置 `query_limit` 和 `show_seen`
-- `schedule`：默认每两个月运行一次
+- `workflow_dispatch`：手动运行，可设置 `query_limit`、`show_seen` 和 `send_email`
+- `schedule`：默认每两个月运行一次；配好邮件变量后会发送邮件
 
 GitHub 运行产物会被上传为 artifact：
 
@@ -161,6 +183,7 @@ It is not a generic TENG search tool and not a long-form literature review gener
 - Stores only lightweight seen-state fields: `doi`, `title_hash`, and `feedback`
 - Produces compact HTML reports and machine-readable JSON
 - Runs locally or through GitHub Actions
+- Can send scheduled GitHub reports by configurable SMTP email; local runs skip email by default
 
 ### Local Usage
 
@@ -202,6 +225,25 @@ Recommended secrets:
 - `SPRINGER_NATURE_API_KEY`
 - `ELSEVIER_API_KEY`
 - `ELSEVIER_INSTTOKEN` optional
+
+Email delivery is optional and SMTP-based. Store non-sensitive values as repository variables:
+
+- `RADAR_EMAIL_TO`
+- `RADAR_EMAIL_CC` optional
+- `RADAR_EMAIL_BCC` optional
+- `RADAR_EMAIL_FROM` optional
+- `RADAR_EMAIL_ENABLED` optional, `auto`, `1`, or `0`
+- `RADAR_EMAIL_SUBJECT_PREFIX` optional
+- `RADAR_EMAIL_ATTACH_JSON` optional, defaults to `1`
+- `SMTP_PORT` optional, defaults to `587`
+- `SMTP_USE_TLS` optional, defaults to `1`
+- `SMTP_USE_SSL` optional, defaults to `0`
+
+Store SMTP credentials as repository secrets:
+
+- `SMTP_HOST`
+- `SMTP_USERNAME`
+- `SMTP_PASSWORD`
 
 The workflow stores outputs under `artifacts/research_paper_radar` and uploads them as a GitHub Actions artifact.
 
