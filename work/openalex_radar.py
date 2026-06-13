@@ -890,6 +890,26 @@ def render_html(candidates, exclusions, query_counts, output_path):
         f"<li>{html.escape(q)}：{count}</li>" for q, count in query_counts
     )
     venue_rule = "期刊名单只用于优先级排序和保底提示，不覆盖 A/B/C 机制链硬筛选；中科院分区门槛默认关闭。"
+    colgroup = """<colgroup>
+      <col style="width:52px">
+      <col style="width:90px">
+      <col style="width:140px">
+      <col style="width:320px">
+      <col style="width:720px">
+      <col style="width:180px">
+      <col style="width:70px">
+      <col style="width:170px">
+      <col style="width:110px">
+      <col style="width:80px">
+      <col style="width:80px">
+      <col style="width:420px">
+      <col style="width:220px">
+      <col style="width:240px">
+      <col style="width:240px">
+    </colgroup>"""
+    header_row = """<thead><tr>
+      <th>序号</th><th>推荐等级</th><th>文献类型</th><th>标题</th><th>摘要</th><th>期刊/会议</th><th>年份</th><th>DOI</th><th>证据级别</th><th>相关性评分</th><th>创新性评分</th><th>综合判断</th><th>创新点判断</th><th>可借鉴点</th><th>用户反馈</th>
+    </tr></thead>"""
 
     doc = f"""<!doctype html>
 <html lang="zh-CN">
@@ -905,13 +925,14 @@ def render_html(candidates, exclusions, query_counts, output_path):
     p, li {{ color:#536071; line-height:1.55; }}
     .notice, .summary div {{ border:1px solid #d9e0ea; border-radius:6px; padding:10px 12px; background:#f8fafc; }}
     .summary {{ display:grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap:10px; margin:16px 0 22px; }}
-    .table-scroll-top {{ position:sticky; top:0; z-index:8; width:100%; height:16px; overflow-x:auto; overflow-y:hidden; border:1px solid #d9e0ea; border-bottom:0; background:#f8fafc; }}
+    .table-shell {{ position:relative; }}
+    .table-scroll-top {{ position:sticky; top:0; z-index:9; width:100%; height:16px; overflow-x:auto; overflow-y:hidden; border:1px solid #d9e0ea; border-bottom:0; background:#f8fafc; }}
     .table-scroll-top > div {{ height:1px; }}
+    .table-sticky-head {{ position:sticky; top:16px; z-index:8; width:100%; overflow:hidden; border-left:1px solid #d9e0ea; border-right:1px solid #d9e0ea; background:#eef3f8; box-shadow:0 2px 6px rgba(15,23,42,.12); }}
     .table-wrap {{ width:100%; overflow-x:auto; border:1px solid #d9e0ea; }}
     table {{ width:100%; min-width:3130px; border-collapse:collapse; table-layout:fixed; font-size:13px; }}
     th, td {{ border:1px solid #d9e0ea; padding:8px; vertical-align:top; word-break:normal; overflow-wrap:anywhere; }}
     th {{ background:#eef3f8; text-align:left; }}
-    thead th {{ position:sticky; top:16px; z-index:7; box-shadow:0 1px 0 #d9e0ea, 0 2px 6px rgba(15,23,42,.08); }}
     .title-cell {{ line-height:1.35; }}
     .abstract-cell {{ color:#334155; line-height:1.48; overflow-wrap:normal; }}
     .venue-cell {{ line-height:1.35; }}
@@ -949,31 +970,15 @@ def render_html(candidates, exclusions, query_counts, output_path):
     <div><b>反馈状态</b><br>未配置反馈端点；按钮原地更新，不跳转，可反复修改</div>
   </section>
   <h2>推荐文献（仅含有参考性论文）</h2>
-  <div class="table-scroll-top" aria-label="表格横向滚动条"><div></div></div>
-  <div class="table-wrap">
-  <table>
-    <colgroup>
-      <col style="width:52px">
-      <col style="width:90px">
-      <col style="width:140px">
-      <col style="width:320px">
-      <col style="width:720px">
-      <col style="width:180px">
-      <col style="width:70px">
-      <col style="width:170px">
-      <col style="width:110px">
-      <col style="width:80px">
-      <col style="width:80px">
-      <col style="width:420px">
-      <col style="width:220px">
-      <col style="width:240px">
-      <col style="width:240px">
-    </colgroup>
-    <thead><tr>
-      <th>序号</th><th>推荐等级</th><th>文献类型</th><th>标题</th><th>摘要</th><th>期刊/会议</th><th>年份</th><th>DOI</th><th>证据级别</th><th>相关性评分</th><th>创新性评分</th><th>综合判断</th><th>创新点判断</th><th>可借鉴点</th><th>用户反馈</th>
-    </tr></thead>
-    <tbody>{''.join(rows)}</tbody>
-  </table>
+  <div class="table-shell">
+    <div class="table-scroll-top" aria-label="表格横向滚动条"><div></div></div>
+    <div class="table-sticky-head" aria-hidden="true"><table>{colgroup}{header_row}</table></div>
+    <div class="table-wrap">
+    <table>
+      {colgroup}
+      <tbody>{''.join(rows)}</tbody>
+    </table>
+    </div>
   </div>
   <section class="notice">
     <b>非推荐项：</b>按用户要求不再展示非推荐样例；若主表为空，表示本轮严格筛选未确认可推荐论文。
@@ -983,16 +988,25 @@ def render_html(candidates, exclusions, query_counts, output_path):
 </main>
 <script>
   (function () {{
-    document.querySelectorAll(".table-wrap").forEach((wrap) => {{
-      const top = wrap.previousElementSibling;
-      if (!top || !top.classList.contains("table-scroll-top")) return;
+    document.querySelectorAll(".table-shell").forEach((shell) => {{
+      const top = shell.querySelector(".table-scroll-top");
+      const head = shell.querySelector(".table-sticky-head");
+      const wrap = shell.querySelector(".table-wrap");
+      if (!top || !head || !wrap) return;
       const spacer = top.firstElementChild;
       let syncing = false;
-      const resize = () => {{ spacer.style.width = wrap.scrollWidth + "px"; }};
-      const sync = (from, to) => {{
+      const resize = () => {{
+        const width = wrap.scrollWidth + "px";
+        spacer.style.width = width;
+        const headTable = head.querySelector("table");
+        if (headTable) headTable.style.width = width;
+      }};
+      const sync = (from) => {{
         if (syncing) return;
         syncing = true;
-        to.scrollLeft = from.scrollLeft;
+        top.scrollLeft = from.scrollLeft;
+        head.scrollLeft = from.scrollLeft;
+        wrap.scrollLeft = from.scrollLeft;
         syncing = false;
       }};
       resize();
@@ -1004,8 +1018,8 @@ def render_html(candidates, exclusions, query_counts, output_path):
       }} else {{
         window.addEventListener("resize", resize);
       }}
-      top.addEventListener("scroll", () => sync(top, wrap));
-      wrap.addEventListener("scroll", () => sync(wrap, top));
+      top.addEventListener("scroll", () => sync(top));
+      wrap.addEventListener("scroll", () => sync(wrap));
     }});
     const actionLabels = {{extremely_related:"极其相关", related:"相关", reference_only:"可参考", irrelevant:"无关", downloaded:"已下载", read:"已精读", wrong:"误判", follow:"重点跟进", less:"下次少推此类"}};
     const feedbackEndpoint = "";
