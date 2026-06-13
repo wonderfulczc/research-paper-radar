@@ -144,17 +144,17 @@ RADAR_EMAIL_TO=你的163收件邮箱@163.com
 RADAR_EMAIL_ENABLED=auto
 ```
 
-但 GitHub Actions 不能凭空发邮件。若需要定时邮件通知，还必须额外配置一个发件 SMTP 通道，可以是 QQ 发件邮箱、163 发件邮箱，也可以是其他专门的发件邮箱或 SMTP 服务。例如用 QQ 邮箱发送到 163 收件邮箱：
+但 GitHub Actions 不能凭空发邮件。若需要定时邮件通知，还必须额外配置一个发件 SMTP 通道，可以是 QQ/Foxmail 发件邮箱、163 发件邮箱，也可以是其他专门的发件邮箱或 SMTP 服务。例如用 Foxmail 发件邮箱发送到 163 收件邮箱：
 
 Repository variables：
 
 ```text
 RADAR_EMAIL_TO=你的163收件邮箱@163.com
-RADAR_EMAIL_FROM=你的QQ邮箱@qq.com
+RADAR_EMAIL_FROM=你的Foxmail邮箱@foxmail.com
 RADAR_EMAIL_ENABLED=auto
 SMTP_PROVIDER=qq
 SMTP_HOST=smtp.qq.com
-SMTP_USERNAME=你的QQ邮箱@qq.com
+SMTP_USERNAME=你的Foxmail邮箱@foxmail.com
 SMTP_PORT=465
 SMTP_USE_TLS=0
 SMTP_USE_SSL=1
@@ -163,10 +163,10 @@ SMTP_USE_SSL=1
 Repository secrets：
 
 ```text
-SMTP_PASSWORD=QQ邮箱SMTP授权码
+SMTP_PASSWORD=QQ/Foxmail邮箱SMTP授权码
 ```
 
-其中 `SMTP_PROVIDER=qq` 可以自动补齐 QQ 的默认 SMTP 设置；仍建议显式保留 `SMTP_HOST=smtp.qq.com`，便于排查配置。
+其中 `SMTP_PROVIDER=qq` 可以自动补齐 QQ/Foxmail 的默认 SMTP 设置；仍建议显式保留 `SMTP_HOST=smtp.qq.com`，便于排查配置。`SMTP_USERNAME` 必须是完整发件邮箱地址，例如 `name@foxmail.com`；`SMTP_PASSWORD` 必须是开启 SMTP/IMAP 后生成的授权码，不是网页登录密码。若 QQ/Foxmail 拒绝发件，优先确认 `RADAR_EMAIL_FROM` 与 `SMTP_USERNAME` 完全一致。
 
 如果也想用 163 作为发件通道，通常是 `SMTP_HOST=smtp.163.com`、`SMTP_PORT=465`、`SMTP_USE_SSL=1`、`SMTP_USE_TLS=0`，并且 `SMTP_PASSWORD` 应使用 163 邮箱的“客户端授权码/SMTP 授权码”，通常不是网页登录密码。需要在 163 邮箱设置中开启 POP3/SMTP/IMAP 服务并生成授权码。
 
@@ -282,7 +282,7 @@ Store sender SMTP credentials as repository secrets:
 
 - `SMTP_PASSWORD`
 
-If 163 Mail is only the recipient inbox, set only `RADAR_EMAIL_TO=<your 163 address>` for that part. To receive scheduled email reports, also configure a sender SMTP provider. For QQ Mail sender to a 163 recipient, use `SMTP_PROVIDER=qq`, `SMTP_HOST=smtp.qq.com`, `SMTP_PORT=465`, `SMTP_USE_SSL=1`, `SMTP_USE_TLS=0`, `SMTP_USERNAME=<your QQ email>`, and use the QQ SMTP authorization code as `SMTP_PASSWORD`. If 163 Mail is used as the sender provider, use `SMTP_HOST=smtp.163.com`, `SMTP_PORT=465`, `SMTP_USE_SSL=1`, `SMTP_USE_TLS=0`, and use the 163 SMTP authorization code as `SMTP_PASSWORD`.
+If 163 Mail is only the recipient inbox, set only `RADAR_EMAIL_TO=<your 163 address>` for that part. To receive scheduled email reports, also configure a sender SMTP provider. For QQ/Foxmail sender to a 163 recipient, use `SMTP_PROVIDER=qq`, `SMTP_HOST=smtp.qq.com`, `SMTP_PORT=465`, `SMTP_USE_SSL=1`, `SMTP_USE_TLS=0`, `SMTP_USERNAME=<your full QQ/Foxmail email>`, and use the QQ/Foxmail SMTP authorization code as `SMTP_PASSWORD`. Keep `RADAR_EMAIL_FROM` identical to `SMTP_USERNAME` unless the sender alias is allowed. If 163 Mail is used as the sender provider, use `SMTP_HOST=smtp.163.com`, `SMTP_PORT=465`, `SMTP_USE_SSL=1`, `SMTP_USE_TLS=0`, and use the 163 SMTP authorization code as `SMTP_PASSWORD`.
 
 The workflow stores outputs under `artifacts/research_paper_radar` and uploads them as a GitHub Actions artifact.
 

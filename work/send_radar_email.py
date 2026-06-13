@@ -81,6 +81,12 @@ def sender_provider() -> str:
     return aliases.get(domain, "")
 
 
+def address_domain(value: str) -> str:
+    if "@" not in value:
+        return ""
+    return value.rsplit("@", 1)[-1].lower()
+
+
 def smtp_defaults() -> dict:
     return SMTP_PROVIDER_DEFAULTS.get(sender_provider(), {})
 
@@ -169,6 +175,58 @@ def config_help() -> str:
         "SMTP_USE_SSL=1, SMTP_USE_TLS=0, SMTP_USERNAME=<your QQ email>, and a QQ SMTP authorization "
         "code as SMTP_PASSWORD."
     )
+
+
+def describe_email_config() -> str:
+    use_ssl = effective_smtp_use_ssl()
+    use_tls = effective_smtp_use_tls(use_ssl)
+    sender = sender_address()
+    parts = [
+        f"recipient_configured={bool(env('RADAR_EMAIL_TO'))}",
+        f"from_configured={bool(env('RADAR_EMAIL_FROM'))}",
+        f"username_configured={bool(env('SMTP_USERNAME'))}",
+        f"password_configured={bool(env('SMTP_PASSWORD'))}",
+        f"sender_domain={address_domain(sender) or '(unknown)'}",
+        f"provider={sender_provider() or '(none)'}",
+        f"host={effective_smtp_host() or '(missing)'}",
+        f"port={effective_smtp_port(use_ssl)}",
+        f"use_ssl={use_ssl}",
+        f"use_tls={use_tls}",
+    ]
+    return "Email config: " + ", ".join(parts)
+
+
+def smtp_error_text(exc: BaseException) -> str:
+    if isinstance(exc, smtplib.SMTPResponseException):
+        detail = exc.smtp_error
+        if isinstance(detail, bytes):
+            detail = detail.decode("utf-8", errors="replace")
+        return f"{exc.smtp_code} {detail}".strip()
+    return str(exc)
+
+
+def send_failure_hint(exc: BaseException) -> str:
+    provider = sender_provider()
+    if isinstance(exc, smtplib.SMTPAuthenticationError):
+        if provider == "qq":
+            return (
+                "QQ/Foxmail authentication failed. Use the SMTP authorization code, "
+                "not the web login password; set SMTP_USERNAME to the full sender address "
+                "(for example name@foxmail.com), and keep RADAR_EMAIL_FROM the same as "
+                "SMTP_USERNAME unless you know the sender alias is allowed."
+            )
+        return "SMTP authentication failed. Check SMTP_USERNAME and SMTP_PASSWORD/token."
+    if isinstance(exc, smtplib.SMTPConnectError):
+        return "SMTP connection failed. Check SMTP_HOST, SMTP_PORT, SMTP_USE_SSL and SMTP_USE_TLS."
+    if isinstance(exc, ssl.SSLError):
+        return "SMTP SSL/TLS failed. For QQ/Foxmail use port 465 with SMTP_USE_SSL=1 and SMTP_USE_TLS=0."
+    if isinstance(exc, TimeoutError):
+        return "SMTP connection timed out. Check host/port or try again later."
+    if isinstance(exc, smtplib.SMTPSenderRefused):
+        return "SMTP sender was refused. Make RADAR_EMAIL_FROM match SMTP_USERNAME for QQ/Foxmail."
+    if isinstance(exc, smtplib.SMTPRecipientsRefused):
+        return "SMTP recipient was refused. Check RADAR_EMAIL_TO."
+    return "SMTP send failed. Check the email configuration and provider restrictions."
 
 
 def recommendation_lines(payload: dict, limit: int = 10) -> list[str]:
@@ -328,8 +386,10 @@ def main() -> int:
     enabled, required = enabled_state()
     if not enabled:
         print("Email disabled or not configured; skipping.")
+        print(describe_email_config())
         return 0
 
+    print(describe_email_config())
     errors = config_errors(required=required)
     if errors:
         message = "Missing email configuration: " + ", ".join(errors) + ". " + config_help()
@@ -347,7 +407,11 @@ def main() -> int:
     json_path = latest_file(RADAR_ARTIFACT_DIR / "runs", "*.json")
     payload = load_json(json_path)
     message = build_message(report_path, json_path, payload)
-    send_message(message)
+    try:
+        send_message(message)
+    except (smtplib.SMTPException, OSError, TimeoutError, ssl.SSLError) as exc:
+        print(f"ERROR: {send_failure_hint(exc)} Detail: {smtp_error_text(exc)}", file=sys.stderr)
+        return 4
     print(f"Email sent to {env('RADAR_EMAIL_TO')} with report {report_path}")
     return 0
 
