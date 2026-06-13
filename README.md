@@ -66,6 +66,14 @@ python -m py_compile work\*.py
 python work\three_year_top_scout.py
 ```
 
+本地运行默认不发送邮件，也不需要配置任何 `RADAR_EMAIL_*` 或 `SMTP_*` 变量。检索结果会直接写入产物目录，主要查看：
+
+```text
+reports/*.html
+runs/*.json
+state/seen_papers.json
+```
+
 小范围测试：
 
 ```powershell
@@ -100,22 +108,61 @@ OpenAlex 是主检索源，不需要 key。Crossref 是 DOI 摘要兜底源，�
 
 ### GitHub Actions 配置
 
-在 GitHub 仓库中依次进入：
+GitHub Actions 有两种使用方式：
+
+- 手动测试：在 Actions 页面点击 `research-paper-radar` -> `Run workflow`，可临时设置 `query_limit`、`show_seen`、`send_email`
+- 定期检索：由 `.github/workflows/research-paper-radar.yml` 中的 `schedule` 自动触发，当前默认每两个月运行一次
+
+在 GitHub 仓库中依次进入以下页面配置变量和密钥：
 
 ```text
-Settings -> Secrets and variables -> Actions -> New repository secret
+Settings -> Secrets and variables -> Actions
 ```
 
-添加文献 API secrets：
+#### 1. 文献 API 配置
+
+添加文献 API 到 `Repository secrets`：
 
 - `SEMANTIC_SCHOLAR_API_KEY`（推荐；支持无 key 公开兜底）
 - `SPRINGER_NATURE_API_KEY`
 - `ELSEVIER_API_KEY`
 - `ELSEVIER_INSTTOKEN`（可选）
 
-邮件发送使用 SMTP，默认本地运行不发送。GitHub 定时运行时，若仓库同时配置了收件人和发件 SMTP 通道，则自动发送最新 HTML 报告和 JSON 结果；只配置收件邮箱时会跳过邮件，仍上传 artifact。
+这些 key 只用于 GitHub Actions 运行时补全摘要、引用和出版商元数据。本地运行时也可以通过系统环境变量临时配置同名 key。
 
-建议把非敏感配置放在 repository variables：
+#### 2. 本地不发邮件配置
+
+本地直接运行 `python work\three_year_top_scout.py` 时不会自动发邮件。若只在本地查看 HTML/JSON 结果，不需要配置下面这些变量：
+
+```text
+RADAR_EMAIL_TO
+RADAR_EMAIL_FROM
+SMTP_HOST
+SMTP_USERNAME
+SMTP_PASSWORD
+```
+
+#### 3. GitHub 只检索不发邮件
+
+如果只希望 GitHub Actions 定期生成 artifact，不发送邮件：
+
+Repository variables：
+
+```text
+RADAR_EMAIL_ENABLED=0
+```
+
+手动运行时也可以在 `Run workflow` 面板里把 `send_email` 填为 `0`。这种模式仍会上传：
+
+```text
+artifacts/research_paper_radar/
+```
+
+#### 4. GitHub 定期检索并发送邮件
+
+邮件发送使用 SMTP。`RADAR_EMAIL_TO` 只是收件邮箱；GitHub Actions 还必须有一个发件 SMTP 通道，才能真正把报告发出去。
+
+建议把非敏感配置放在 `Repository variables`：
 
 - `RADAR_EMAIL_TO`：收件人，多个邮箱用英文逗号或分号分隔；可以是 163、QQ、Gmail 等任意接收邮箱
 - `RADAR_EMAIL_CC`：抄送，可选
@@ -131,20 +178,17 @@ Settings -> Secrets and variables -> Actions -> New repository secret
 - `SMTP_USE_TLS`：默认 `1`
 - `SMTP_USE_SSL`：默认 `0`；如使用 465 端口通常设为 `1`
 
-把敏感配置放在 repository secrets：
+把敏感配置放在 `Repository secrets`：
 
 - `SMTP_PASSWORD`：发件 SMTP 密码、token 或授权码
 
-如果你的 163 邮箱只是接收邮箱，只需要把它填到 `RADAR_EMAIL_TO`，例如：
+若变量误放到 `Repository secrets`，当前 workflow 也会读取大多数邮件字段的 secret 版本；但推荐把非敏感项放在 variables，便于后续排查。
 
-Repository variables：
+#### 5. 常见收发邮箱配置
 
-```text
-RADAR_EMAIL_TO=你的163收件邮箱@163.com
-RADAR_EMAIL_ENABLED=auto
-```
+如果你的 163 邮箱只是接收邮箱，只需要把它填到 `RADAR_EMAIL_TO`。但如果要发送邮件，还需要额外配置发件 SMTP。
 
-但 GitHub Actions 不能凭空发邮件。若需要定时邮件通知，还必须额外配置一个发件 SMTP 通道，可以是 QQ/Foxmail 发件邮箱、163 发件邮箱，也可以是其他专门的发件邮箱或 SMTP 服务。例如用 Foxmail 发件邮箱发送到 163 收件邮箱：
+Foxmail/QQ 发件到 163 收件箱，已测试通过的配置：
 
 Repository variables：
 
@@ -168,7 +212,60 @@ SMTP_PASSWORD=QQ/Foxmail邮箱SMTP授权码
 
 其中 `SMTP_PROVIDER=qq` 可以自动补齐 QQ/Foxmail 的默认 SMTP 设置；仍建议显式保留 `SMTP_HOST=smtp.qq.com`，便于排查配置。`SMTP_USERNAME` 必须是完整发件邮箱地址，例如 `name@foxmail.com`；`SMTP_PASSWORD` 必须是开启 SMTP/IMAP 后生成的授权码，不是网页登录密码。若 QQ/Foxmail 拒绝发件，优先确认 `RADAR_EMAIL_FROM` 与 `SMTP_USERNAME` 完全一致。
 
-如果也想用 163 作为发件通道，通常是 `SMTP_HOST=smtp.163.com`、`SMTP_PORT=465`、`SMTP_USE_SSL=1`、`SMTP_USE_TLS=0`，并且 `SMTP_PASSWORD` 应使用 163 邮箱的“客户端授权码/SMTP 授权码”，通常不是网页登录密码。需要在 163 邮箱设置中开启 POP3/SMTP/IMAP 服务并生成授权码。
+163 发件到任意收件箱：
+
+Repository variables：
+
+```text
+RADAR_EMAIL_TO=你的收件邮箱
+RADAR_EMAIL_FROM=你的163发件邮箱@163.com
+RADAR_EMAIL_ENABLED=auto
+SMTP_PROVIDER=163
+SMTP_HOST=smtp.163.com
+SMTP_USERNAME=你的163发件邮箱@163.com
+SMTP_PORT=465
+SMTP_USE_SSL=1
+SMTP_USE_TLS=0
+```
+
+Repository secrets：
+
+```text
+SMTP_PASSWORD=163邮箱客户端授权码
+```
+
+使用其他发件服务时，保持同一逻辑：`RADAR_EMAIL_TO` 是收件人，`RADAR_EMAIL_FROM` 和 `SMTP_USERNAME` 是发件账号，`SMTP_PASSWORD` 是发件服务提供的 SMTP 密码或授权码。
+
+#### 6. 开启和测试定期检索
+
+1. 在 `Settings -> Secrets and variables -> Actions` 配好 API key 和邮件变量。
+2. 进入 `Actions -> research-paper-radar`。
+3. 如果页面提示 workflow 未启用，点击启用。
+4. 点击 `Run workflow` 做一次手动测试：
+   - `query_limit=4` 可用于快速测试
+   - `show_seen=0` 保持默认即可
+   - `send_email=1` 强制测试邮件发送
+5. 手动测试通过后，保留 `schedule` 配置即可自动定期运行。
+
+当前定期检索周期写在 `.github/workflows/research-paper-radar.yml`：
+
+```yaml
+schedule:
+  - cron: "0 1 1 */2 *"
+```
+
+该 cron 使用 UTC 时间，当前表示每两个月的 1 日 01:00 UTC 运行一次。常见修改：
+
+```yaml
+# 每月 1 日 01:00 UTC
+- cron: "0 1 1 * *"
+
+# 每两个月 1 日 01:00 UTC
+- cron: "0 1 1 */2 *"
+
+# 每周一 01:00 UTC
+- cron: "0 1 * * 1"
+```
 
 工作流支持：
 
@@ -183,6 +280,40 @@ artifacts/research_paper_radar/
 ├── runs/*.json
 ├── reports/*.html
 └── cache/*.json
+```
+
+#### 7. 邮件故障排查
+
+发送邮件前，日志会输出脱敏诊断信息，例如：
+
+```text
+Email config: recipient_configured=True, from_configured=True, username_configured=True, password_configured=True, sender_domain=foxmail.com, provider=qq, host=smtp.qq.com, port=465, use_ssl=True, use_tls=False
+```
+
+如果邮件失败，优先检查：
+
+- `password_configured=True` 是否出现；若为 `False`，说明 `SMTP_PASSWORD` secret 没配置或名字不对
+- `sender_domain` 是否是预期发件域名，例如 `foxmail.com`
+- `host`、`port`、`use_ssl`、`use_tls` 是否匹配发件服务
+- Foxmail/QQ 发件时，`RADAR_EMAIL_FROM` 与 `SMTP_USERNAME` 是否完全一致
+- `SMTP_PASSWORD` 是否为 SMTP/IMAP 授权码，而不是网页登录密码
+
+#### 8. 维护和提交约定
+
+每次修改 GitHub Actions、邮件发送、定期检索或 CI 相关逻辑后，`git commit` 信息需要写清楚本次 CI 变化原因。推荐格式：
+
+```text
+<scope>: <what changed>
+
+CI reason: <why the workflow/config/test behavior changed>
+```
+
+示例：
+
+```text
+docs: clarify scheduled radar email setup
+
+CI reason: document the tested Foxmail-to-163 workflow and cron configuration so future Actions runs are reproducible.
 ```
 
 ### 反馈说明
@@ -247,22 +378,59 @@ Show already-seen papers for debugging:
 RADAR_SHOW_SEEN=1 python work/three_year_top_scout.py
 ```
 
-### GitHub Actions Secrets
+Local runs do not send email by default and do not require any `RADAR_EMAIL_*` or `SMTP_*` variables. Results are written to the artifact directory, especially `reports/*.html`, `runs/*.json`, and `state/seen_papers.json`.
 
-Configure repository secrets under:
+### GitHub Actions Setup
+
+The GitHub workflow supports two modes:
+
+- Manual test: open `Actions -> research-paper-radar -> Run workflow`, then set `query_limit`, `show_seen`, and `send_email`.
+- Scheduled radar: `.github/workflows/research-paper-radar.yml` runs automatically on the configured cron schedule.
+
+Configure repository secrets and variables under:
 
 ```text
 Settings -> Secrets and variables -> Actions
 ```
 
-Recommended secrets:
+#### 1. Literature API Secrets
+
+Recommended repository secrets:
 
 - `SEMANTIC_SCHOLAR_API_KEY`
 - `SPRINGER_NATURE_API_KEY`
 - `ELSEVIER_API_KEY`
 - `ELSEVIER_INSTTOKEN` optional
 
-Email delivery is optional and SMTP-based. A recipient address only tells the workflow where to send the report; GitHub Actions still needs a sender SMTP channel to actually deliver email. Store non-sensitive values as repository variables:
+These keys are used for abstract, citation, and publisher metadata enrichment in GitHub Actions. Local runs can use the same names as environment variables.
+
+#### 2. Local Runs Without Email
+
+Local usage does not need email settings. You can run:
+
+```bash
+python work/three_year_top_scout.py
+```
+
+and open the generated HTML report directly from the artifact directory.
+
+#### 3. GitHub Runs Without Email
+
+To let GitHub Actions generate artifacts without sending email, set:
+
+Repository variables:
+
+```text
+RADAR_EMAIL_ENABLED=0
+```
+
+For manual `Run workflow` tests, set `send_email=0`.
+
+#### 4. Scheduled GitHub Runs With Email
+
+Email delivery is optional and SMTP-based. `RADAR_EMAIL_TO` is only the recipient address; GitHub Actions also needs a sender SMTP channel to actually deliver email.
+
+Store non-sensitive values as repository variables:
 
 - `RADAR_EMAIL_TO` recipient address; any inbox provider is fine, including 163 Mail
 - `RADAR_EMAIL_CC` optional
@@ -282,9 +450,124 @@ Store sender SMTP credentials as repository secrets:
 
 - `SMTP_PASSWORD`
 
-If 163 Mail is only the recipient inbox, set only `RADAR_EMAIL_TO=<your 163 address>` for that part. To receive scheduled email reports, also configure a sender SMTP provider. For QQ/Foxmail sender to a 163 recipient, use `SMTP_PROVIDER=qq`, `SMTP_HOST=smtp.qq.com`, `SMTP_PORT=465`, `SMTP_USE_SSL=1`, `SMTP_USE_TLS=0`, `SMTP_USERNAME=<your full QQ/Foxmail email>`, and use the QQ/Foxmail SMTP authorization code as `SMTP_PASSWORD`. Keep `RADAR_EMAIL_FROM` identical to `SMTP_USERNAME` unless the sender alias is allowed. If 163 Mail is used as the sender provider, use `SMTP_HOST=smtp.163.com`, `SMTP_PORT=465`, `SMTP_USE_SSL=1`, `SMTP_USE_TLS=0`, and use the 163 SMTP authorization code as `SMTP_PASSWORD`.
+If a non-sensitive value is accidentally stored as a repository secret instead of a variable, the workflow can read most email fields from either source. Variables are still recommended for non-sensitive values because they are easier to inspect.
+
+#### 5. Common Sender/Recipient Examples
+
+Foxmail/QQ sender to a 163 recipient, tested configuration:
+
+Repository variables:
+
+```text
+RADAR_EMAIL_TO=recipient@163.com
+RADAR_EMAIL_FROM=sender@foxmail.com
+RADAR_EMAIL_ENABLED=auto
+SMTP_PROVIDER=qq
+SMTP_HOST=smtp.qq.com
+SMTP_USERNAME=sender@foxmail.com
+SMTP_PORT=465
+SMTP_USE_SSL=1
+SMTP_USE_TLS=0
+```
+
+Repository secrets:
+
+```text
+SMTP_PASSWORD=QQ/Foxmail SMTP authorization code
+```
+
+Keep `RADAR_EMAIL_FROM` identical to `SMTP_USERNAME` unless the provider explicitly allows a sender alias. Use the SMTP/IMAP authorization code, not the web login password.
+
+163 sender to any recipient:
+
+Repository variables:
+
+```text
+RADAR_EMAIL_TO=recipient@example.com
+RADAR_EMAIL_FROM=sender@163.com
+RADAR_EMAIL_ENABLED=auto
+SMTP_PROVIDER=163
+SMTP_HOST=smtp.163.com
+SMTP_USERNAME=sender@163.com
+SMTP_PORT=465
+SMTP_USE_SSL=1
+SMTP_USE_TLS=0
+```
+
+Repository secrets:
+
+```text
+SMTP_PASSWORD=163 SMTP authorization code
+```
+
+For any other provider, use the same rule: `RADAR_EMAIL_TO` is the recipient, `RADAR_EMAIL_FROM` and `SMTP_USERNAME` are the sender account, and `SMTP_PASSWORD` is the sender provider's SMTP password or authorization token.
+
+#### 6. Enabling and Changing the Schedule
+
+1. Configure API keys and email variables under `Settings -> Secrets and variables -> Actions`.
+2. Open `Actions -> research-paper-radar`.
+3. Enable the workflow if GitHub shows an enable button.
+4. Run a manual test with `Run workflow`:
+   - `query_limit=4` for a quick test
+   - `show_seen=0` for normal behavior
+   - `send_email=1` to force email delivery testing
+5. After a successful manual run, keep the `schedule` entry enabled for unattended runs.
+
+The current schedule lives in `.github/workflows/research-paper-radar.yml`:
+
+```yaml
+schedule:
+  - cron: "0 1 1 */2 *"
+```
+
+GitHub cron uses UTC. The current value means 01:00 UTC on the first day of every two months. Common alternatives:
+
+```yaml
+# Monthly, day 1, 01:00 UTC
+- cron: "0 1 1 * *"
+
+# Every two months, day 1, 01:00 UTC
+- cron: "0 1 1 */2 *"
+
+# Every Monday, 01:00 UTC
+- cron: "0 1 * * 1"
+```
 
 The workflow stores outputs under `artifacts/research_paper_radar` and uploads them as a GitHub Actions artifact.
+
+#### 7. Email Troubleshooting
+
+Before sending, the script prints a sanitized diagnostic line:
+
+```text
+Email config: recipient_configured=True, from_configured=True, username_configured=True, password_configured=True, sender_domain=foxmail.com, provider=qq, host=smtp.qq.com, port=465, use_ssl=True, use_tls=False
+```
+
+Check:
+
+- `password_configured=True`; otherwise `SMTP_PASSWORD` is missing or misnamed
+- `sender_domain` is the expected sender domain
+- `host`, `port`, `use_ssl`, and `use_tls` match the sender provider
+- for Foxmail/QQ, `RADAR_EMAIL_FROM` exactly matches `SMTP_USERNAME`
+- `SMTP_PASSWORD` is the SMTP/IMAP authorization code, not the web login password
+
+#### 8. Maintenance And Commit Convention
+
+Whenever a commit changes GitHub Actions, scheduled runs, email delivery, or CI behavior, include the CI reason in the commit message:
+
+```text
+<scope>: <what changed>
+
+CI reason: <why the workflow/config/test behavior changed>
+```
+
+Example:
+
+```text
+docs: clarify scheduled radar email setup
+
+CI reason: document the tested Foxmail-to-163 workflow and cron configuration so future Actions runs are reproducible.
+```
 
 ### Installing as a Codex Skill
 
