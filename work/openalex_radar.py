@@ -904,6 +904,8 @@ def render_html(candidates, exclusions, query_counts, output_path):
     p, li {{ color:#536071; line-height:1.55; }}
     .notice, .summary div {{ border:1px solid #d9e0ea; border-radius:6px; padding:10px 12px; background:#f8fafc; }}
     .summary {{ display:grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap:10px; margin:16px 0 22px; }}
+    .table-scroll-top {{ position:sticky; top:0; z-index:6; width:100%; height:16px; overflow-x:auto; overflow-y:hidden; border:1px solid #d9e0ea; border-bottom:0; background:#f8fafc; }}
+    .table-scroll-top > div {{ height:1px; }}
     .table-wrap {{ width:100%; overflow-x:auto; border:1px solid #d9e0ea; }}
     table {{ width:100%; min-width:3130px; border-collapse:collapse; table-layout:fixed; font-size:13px; }}
     th, td {{ border:1px solid #d9e0ea; padding:8px; vertical-align:top; word-break:normal; overflow-wrap:anywhere; }}
@@ -945,6 +947,7 @@ def render_html(candidates, exclusions, query_counts, output_path):
     <div><b>反馈状态</b><br>未配置反馈端点；按钮原地更新，不跳转，可反复修改</div>
   </section>
   <h2>推荐文献（仅含有参考性论文）</h2>
+  <div class="table-scroll-top" aria-label="表格横向滚动条"><div></div></div>
   <div class="table-wrap">
   <table>
     <colgroup>
@@ -978,6 +981,30 @@ def render_html(candidates, exclusions, query_counts, output_path):
 </main>
 <script>
   (function () {{
+    document.querySelectorAll(".table-wrap").forEach((wrap) => {{
+      const top = wrap.previousElementSibling;
+      if (!top || !top.classList.contains("table-scroll-top")) return;
+      const spacer = top.firstElementChild;
+      let syncing = false;
+      const resize = () => {{ spacer.style.width = wrap.scrollWidth + "px"; }};
+      const sync = (from, to) => {{
+        if (syncing) return;
+        syncing = true;
+        to.scrollLeft = from.scrollLeft;
+        syncing = false;
+      }};
+      resize();
+      if (window.ResizeObserver) {{
+        const observer = new ResizeObserver(resize);
+        observer.observe(wrap);
+        const table = wrap.querySelector("table");
+        if (table) observer.observe(table);
+      }} else {{
+        window.addEventListener("resize", resize);
+      }}
+      top.addEventListener("scroll", () => sync(top, wrap));
+      wrap.addEventListener("scroll", () => sync(wrap, top));
+    }});
     const actionLabels = {{extremely_related:"极其相关", related:"相关", reference_only:"可参考", irrelevant:"无关", downloaded:"已下载", read:"已精读", wrong:"误判", follow:"重点跟进", less:"下次少推此类"}};
     const feedbackEndpoint = "";
     document.querySelectorAll(".feedback button").forEach((button) => {{
@@ -1181,7 +1208,8 @@ def main():
     print(f"CAS partition mode: {CAS_PARTITION_MODE} table={CAS_PARTITION_TABLE}")
     print(
         "Semantic Scholar enrichment: "
-        f"available={s2_stats['available']} checked={s2_stats['checked']} "
+        f"available={s2_stats['available']} authenticated={s2_stats['authenticated']} "
+        f"checked={s2_stats['checked']} "
         f"filled_abstracts={s2_stats['filled_abstracts']}"
     )
     print(

@@ -30,6 +30,7 @@ S2_FIELDS = ",".join(
 S2_CACHE_PATH = RADAR_ARTIFACT_DIR / "cache" / "semantic_scholar_cache.json"
 S2_USER_AGENT = "Codex research-paper-radar semantic-scholar-enrichment"
 DEFAULT_ENRICH_LIMIT = 120
+REQUIRE_API_KEY = os.environ.get("SEMANTIC_SCHOLAR_REQUIRE_KEY", "").strip().lower() in {"1", "true", "yes"}
 
 _cache = None
 _cache_dirty = False
@@ -56,7 +57,7 @@ def semantic_scholar_api_key() -> str:
 
 
 def semantic_scholar_available() -> bool:
-    return bool(semantic_scholar_api_key())
+    return bool(semantic_scholar_api_key()) or not REQUIRE_API_KEY
 
 
 def normalize_doi(doi: str) -> str:
@@ -110,20 +111,27 @@ def semantic_scholar_paper_by_doi(doi: str) -> dict:
     global _cache_dirty
     key = semantic_scholar_api_key()
     doi_value = normalize_doi(doi)
-    if not key or not doi_value:
+    if REQUIRE_API_KEY and not key:
+        return {}
+    if not doi_value:
         return {}
 
     cache_key = f"DOI:{doi_value}"
     cache = load_cache()
-    if cache_key in cache:
-        return cache[cache_key]
+    cached = cache.get(cache_key)
+    if cached and not cached.get("error"):
+        return cached
+    if cached and cached.get("error"):
+        cache.pop(cache_key, None)
+        _cache_dirty = True
 
     identifier = urllib.parse.quote(cache_key, safe=":")
     url = f"{S2_BASE}{identifier}?fields={urllib.parse.quote(S2_FIELDS, safe=',')}"
     headers = {
         "User-Agent": S2_USER_AGENT,
-        "x-api-key": key,
     }
+    if key:
+        headers["x-api-key"] = key
 
     data = {}
     for attempt in range(3):
@@ -146,8 +154,9 @@ def semantic_scholar_paper_by_doi(doi: str) -> dict:
             data = {"error": type(exc).__name__}
             break
 
-    cache[cache_key] = data
-    _cache_dirty = True
+    if data and not data.get("error"):
+        cache[cache_key] = data
+        _cache_dirty = True
     return data
 
 
@@ -179,7 +188,7 @@ def candidate_priority(candidate) -> tuple:
         ]
     )
     transferish = "transfer" in tracks
-    manual_evidence = source == "page-text/manual-evidence"
+    manual_evidence = source in {"page-text/manual-evidence", "seed/manual-evidence"}
     track_rank = 0 if topish else 1 if coreish else 2 if transferish else 3
     return (track_rank, 0 if manual_evidence else 1, title)
 
@@ -189,6 +198,7 @@ def semantic_scholar_enrich_candidates(candidates, limit: int | None = None) -> 
         limit = int(os.environ.get("SEMANTIC_SCHOLAR_ENRICH_LIMIT", DEFAULT_ENRICH_LIMIT))
     result = {
         "available": semantic_scholar_available(),
+        "authenticated": bool(semantic_scholar_api_key()),
         "checked": 0,
         "filled_abstracts": 0,
         "limit": limit,
@@ -203,7 +213,7 @@ def semantic_scholar_enrich_candidates(candidates, limit: int | None = None) -> 
             continue
         abstract = clean_text(getattr(candidate, "abstract", ""))
         source = getattr(candidate, "abstract_source", "")
-        if not abstract or source == "page-text/manual-evidence":
+        if not abstract or source in {"page-text/manual-evidence", "seed/manual-evidence"}:
             pending.append(candidate)
 
     pending.sort(key=candidate_priority)

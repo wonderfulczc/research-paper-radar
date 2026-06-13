@@ -794,6 +794,8 @@ def render_html(recommended, query_counts, output_path):
   <title>近 3 年击穿放电无线传感顶刊/IEEE 定向核查</title>
   <style>
     body {{ font-family: Arial, "Microsoft YaHei", sans-serif; margin: 24px; color: #18212f; }}
+    .table-scroll-top {{ position:sticky; top:0; z-index:6; width:100%; height:16px; overflow-x:auto; overflow-y:hidden; border:1px solid #d9e0ea; border-bottom:0; background:#f8fafc; }}
+    .table-scroll-top > div {{ height:1px; }}
     .table-wrap {{ width:100%; overflow-x:auto; border:1px solid #d9e0ea; }}
     table {{ width: 100%; min-width: 2540px; border-collapse: collapse; table-layout: fixed; font-size: 13px; }}
     th, td {{ border: 1px solid #d9e0ea; padding: 8px; vertical-align: top; word-break: normal; overflow-wrap: anywhere; }}
@@ -820,6 +822,7 @@ def render_html(recommended, query_counts, output_path):
   <p>报告 ID：{REPORT_ID}｜窗口：{START.isoformat()} 至 {TODAY.isoformat()}</p>
   <div class="notice">只展示通过严格门槛的推荐论文；非推荐样例不再列出。机制筛选按 A=自供能/摩擦/triboelectric 激发、B=击穿放电/电磁波生成、C=无线通信/传感/可穿戴系统功能执行，优先 A+B/B+C，A+C 降权且仅在 S 级顶刊和 IEEE Transactions 例外。{venue_rule} 检索源为 OpenAlex public API，并在配置 API key 时用 Semantic Scholar、Springer Nature Meta API 与 Elsevier API 补全 DOI 摘要/引用元数据；结论为元数据/摘要层面初筛。</div>
   <p>推荐数量：{len(recommended)}；其中 S/A/IEEE 优先 venue：{priority_count}；已见去重隐藏：{seen_filtered_count}。去重索引：{html.escape(str(seen_index_path))}</p>
+  <div class="table-scroll-top" aria-label="表格横向滚动条"><div></div></div>
   <div class="table-wrap">
   <table>
     <colgroup>
@@ -845,6 +848,30 @@ def render_html(recommended, query_counts, output_path):
   <ul>{query_items}</ul>
 <script>
   (function () {{
+    document.querySelectorAll(".table-wrap").forEach((wrap) => {{
+      const top = wrap.previousElementSibling;
+      if (!top || !top.classList.contains("table-scroll-top")) return;
+      const spacer = top.firstElementChild;
+      let syncing = false;
+      const resize = () => {{ spacer.style.width = wrap.scrollWidth + "px"; }};
+      const sync = (from, to) => {{
+        if (syncing) return;
+        syncing = true;
+        to.scrollLeft = from.scrollLeft;
+        syncing = false;
+      }};
+      resize();
+      if (window.ResizeObserver) {{
+        const observer = new ResizeObserver(resize);
+        observer.observe(wrap);
+        const table = wrap.querySelector("table");
+        if (table) observer.observe(table);
+      }} else {{
+        window.addEventListener("resize", resize);
+      }}
+      top.addEventListener("scroll", () => sync(top, wrap));
+      wrap.addEventListener("scroll", () => sync(wrap, top));
+    }});
     const actionLabels = {{extremely_related:"极其相关", related:"相关", reference_only:"可参考", irrelevant:"无关"}};
     const feedbackEndpoint = "";
     document.querySelectorAll(".feedback button").forEach((button) => {{
@@ -1029,7 +1056,8 @@ def main():
     print(f"Top/strong recommended: {payload['top_venue_recommended_count']}")
     print(
         "Semantic Scholar enrichment: "
-        f"available={s2_stats['available']} checked={s2_stats['checked']} "
+        f"available={s2_stats['available']} authenticated={s2_stats['authenticated']} "
+        f"checked={s2_stats['checked']} "
         f"filled_abstracts={s2_stats['filled_abstracts']}"
     )
     print(

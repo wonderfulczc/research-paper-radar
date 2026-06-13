@@ -1,6 +1,7 @@
 import sys
 
 from semantic_scholar_enrich import (
+    semantic_scholar_api_key,
     semantic_scholar_available,
     semantic_scholar_paper_by_doi,
 )
@@ -14,11 +15,12 @@ TEST_DOIS = [
 
 def main() -> int:
     if not semantic_scholar_available():
-        print("Semantic Scholar API key: NOT FOUND")
-        print("Set SEMANTIC_SCHOLAR_API_KEY before running this test.")
+        print("Semantic Scholar: unavailable")
+        print("Set SEMANTIC_SCHOLAR_API_KEY or unset SEMANTIC_SCHOLAR_REQUIRE_KEY.")
         return 2
 
-    print("Semantic Scholar API key: FOUND")
+    key_status = "FOUND" if semantic_scholar_api_key() else "NOT FOUND; using public fallback"
+    print(f"Semantic Scholar API key: {key_status}")
     for doi in TEST_DOIS:
         print(f"\nDOI: {doi}")
         data = semantic_scholar_paper_by_doi(doi)

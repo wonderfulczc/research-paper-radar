@@ -88,12 +88,12 @@ python work\three_year_top_scout.py
 
 | API | 推荐变量名 | 作用 |
 | --- | --- | --- |
-| Semantic Scholar | `SEMANTIC_SCHOLAR_API_KEY` | DOI 元数据、摘要、引用补全 |
+| Semantic Scholar | `SEMANTIC_SCHOLAR_API_KEY` | DOI 元数据、摘要、引用补全；推荐配置，可提高稳定性和限额 |
 | Springer Nature | `SPRINGER_NATURE_API_KEY` | Nature/Springer Meta API 摘要补全 |
 | Elsevier | `ELSEVIER_API_KEY` | Scopus / ScienceDirect 元数据与摘要补全 |
 | Elsevier optional | `ELSEVIER_INSTTOKEN` | 机构权限 token，可选 |
 
-OpenAlex 是主检索源，不需要 key。
+OpenAlex 是主检索源，不需要 key。Semantic Scholar 支持无 key 公开调用；如需强制必须使用 key，可设置 `SEMANTIC_SCHOLAR_REQUIRE_KEY=1`。
 
 ### GitHub Actions 配置
 
@@ -105,7 +105,7 @@ Settings -> Secrets and variables -> Actions -> New repository secret
 
 添加：
 
-- `SEMANTIC_SCHOLAR_API_KEY`
+- `SEMANTIC_SCHOLAR_API_KEY`（推荐；支持无 key 公开兜底）
 - `SPRINGER_NATURE_API_KEY`
 - `ELSEVIER_API_KEY`
 - `ELSEVIER_INSTTOKEN`（可选）
