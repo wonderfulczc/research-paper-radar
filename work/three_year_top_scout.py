@@ -10,15 +10,16 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 from semantic_scholar_enrich import semantic_scholar_enrich_candidates
 from crossref_enrich import crossref_enrich_candidates
 from springer_nature_enrich import springer_nature_enrich_candidates
 from elsevier_enrich import elsevier_enrich_candidates
+from feedback_learning import apply_feedback_learning
 from mechanism_terms import MECHANISM_TERMS
-from radar_state import RADAR_ARTIFACT_DIR, SEEN_INDEX_PATH, load_seen_index, split_unseen, update_seen_index
+from radar_state import RADAR_ARTIFACT_DIR, SEEN_INDEX_PATH, load_seen_index, split_unseen, title_hash, update_seen_index
 from priority_venues import (
     A_TIER_VENUES,
     B_TIER_DIRECT_ONLY_VENUES,
@@ -32,7 +33,12 @@ from priority_venues import (
 
 
 TODAY = date.today()
-START = date(TODAY.year - 3, TODAY.month, TODAY.day)
+LOOKBACK_DAYS = int(os.environ.get("RADAR_LOOKBACK_DAYS", "0") or "0")
+START = (
+    TODAY - timedelta(days=LOOKBACK_DAYS)
+    if LOOKBACK_DAYS > 0
+    else date(TODAY.year - 3, TODAY.month, TODAY.day)
+)
 BASE = "https://api.openalex.org/works"
 REPORT_ID = f"RADAR-3YR-SCOUT-{TODAY.isoformat()}"
 OPENALEX_TIMEOUT_SECONDS = int(os.environ.get("OPENALEX_TIMEOUT_SECONDS", "25"))
@@ -740,7 +746,7 @@ def classify(candidate: Candidate):
         candidate.reason = f"{candidate.reason} 机制组合：{candidate.mechanism_pair}。"
 
 
-def feedback_buttons(paper_id: str) -> str:
+def feedback_buttons(paper_id: str, doi: str, title: str) -> str:
     actions = [
         ("extremely_related", "极其相关"),
         ("related", "相关"),
@@ -752,12 +758,14 @@ def feedback_buttons(paper_id: str) -> str:
         for action, label in actions
     )
     return (
-        f'<td class="feedback" data-paper-id="{html.escape(paper_id)}">'
+        f'<td class="feedback" data-paper-id="{html.escape(paper_id)}" data-doi="{html.escape(doi)}" '
+        f'data-title-hash="{html.escape(title_hash(title))}">'
         f"{buttons}<span class=\"feedback-status\">尚未反馈</span></td>"
     )
 
 
 def render_html(recommended, query_counts, output_path):
+    window_label = f"近 {LOOKBACK_DAYS} 天" if LOOKBACK_DAYS > 0 else "近 3 年"
     rows = []
     for idx, c in enumerate(recommended, 1):
         paper_id = f"P{idx:03d}"
@@ -778,11 +786,11 @@ def render_html(recommended, query_counts, output_path):
             f"<td>{c.relevance}</td>"
             f"<td>{c.novelty}</td>"
             f'<td class="judgment-cell">{html.escape(c.reason)}</td>'
-            f"{feedback_buttons(paper_id)}"
+            f"{feedback_buttons(paper_id, doi_text, c.title)}"
             "</tr>"
         )
     if not rows:
-        rows.append('<tr><td colspan="13">本轮近 3 年严格核查未确认新的可推荐论文。</td></tr>')
+        rows.append(f'<tr><td colspan="13">本轮{html.escape(window_label)}严格核查未确认新的可推荐论文。</td></tr>')
     priority_count = sum(1 for c in recommended if c.venue_priority in {"S", "A", "IEEE"})
     query_items = "".join(f"<li>{html.escape(q)}：{n}</li>" for q, n in query_counts)
     seen_filtered_count = getattr(render_html, "seen_filtered_count", 0)
@@ -804,11 +812,18 @@ def render_html(recommended, query_counts, output_path):
       <col style="width:240px">
     </colgroup>"""
     header_row = "<thead><tr><th>序号</th><th>等级</th><th>标题</th><th>摘要</th><th>期刊/会议</th><th>年份</th><th>机制链</th><th>期刊优先级</th><th>DOI</th><th>相关性</th><th>创新性</th><th>综合判断</th><th>用户反馈</th></tr></thead>"
+    feedback_endpoint = json.dumps(os.environ.get("RADAR_FEEDBACK_ENDPOINT", ""))
+    feedback_token = json.dumps(os.environ.get("RADAR_FEEDBACK_WRITE_TOKEN", ""))
+    feedback_notice = (
+        "反馈接收端已配置；按钮点击会在后台提交，并供后续检索学习。"
+        if os.environ.get("RADAR_FEEDBACK_ENDPOINT", "").strip()
+        else "反馈接收端未配置；按钮仅保留当前浏览器中的选择，不会自动回写项目。"
+    )
     doc = f"""<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <title>近 3 年击穿放电无线传感顶刊/IEEE 定向核查</title>
+  <title>{html.escape(window_label)}击穿放电无线传感顶刊/IEEE 定向核查</title>
   <style>
     body {{ font-family: Arial, "Microsoft YaHei", sans-serif; margin: 24px; color: #18212f; }}
     .table-shell {{ position:relative; }}
@@ -837,9 +852,9 @@ def render_html(recommended, query_counts, output_path):
   </style>
 </head>
 <body>
-  <h1>近 3 年击穿放电无线传感顶刊/IEEE 定向核查</h1>
+  <h1>{html.escape(window_label)}击穿放电无线传感顶刊/IEEE 定向核查</h1>
   <p>报告 ID：{REPORT_ID}｜窗口：{START.isoformat()} 至 {TODAY.isoformat()}</p>
-  <div class="notice">只展示通过严格门槛的推荐论文；非推荐样例不再列出。机制筛选按 A=自供能/摩擦/triboelectric 激发、B=击穿放电/电磁波生成、C=无线通信/传感/可穿戴系统功能执行，优先 A+B/B+C，A+C 降权且仅在 S 级顶刊和 IEEE Transactions 例外。{venue_rule} 检索源为 OpenAlex public API，并在配置 API key 时用 Semantic Scholar、Springer Nature Meta API 与 Elsevier API 补全 DOI 摘要/引用元数据；结论为元数据/摘要层面初筛。</div>
+  <div class="notice">只展示通过严格门槛的推荐论文；非推荐样例不再列出。机制筛选按 A=自供能/摩擦/triboelectric 激发、B=击穿放电/电磁波生成、C=无线通信/传感/可穿戴系统功能执行，优先 A+B/B+C，A+C 降权且仅在 S 级顶刊和 IEEE Transactions 例外。{venue_rule} 检索源为 OpenAlex public API，并在配置 API key 时用 Semantic Scholar、Springer Nature Meta API 与 Elsevier API 补全 DOI 摘要/引用元数据；结论为元数据/摘要层面初筛。{html.escape(feedback_notice)}</div>
   <p>推荐数量：{len(recommended)}；其中 S/A/IEEE 优先 venue：{priority_count}；已见去重隐藏：{seen_filtered_count}。去重索引：{html.escape(str(seen_index_path))}</p>
   <div class="table-shell">
     <div class="table-scroll-top" aria-label="表格横向滚动条"><div></div></div>
@@ -889,24 +904,39 @@ def render_html(recommended, query_counts, output_path):
       wrap.addEventListener("scroll", () => sync(wrap));
     }});
     const actionLabels = {{extremely_related:"极其相关", related:"相关", reference_only:"可参考", irrelevant:"无关"}};
-    const feedbackEndpoint = "";
+    const feedbackEndpoint = {feedback_endpoint};
+    const feedbackToken = {feedback_token};
+    const markSelection = (cell, action, statusText) => {{
+      cell.classList.add("has-selection");
+      cell.querySelectorAll("button").forEach((item) => {{
+        const selected = item.dataset.action === action;
+        item.classList.toggle("active", selected);
+        item.setAttribute("aria-pressed", selected ? "true" : "false");
+      }});
+      cell.querySelector(".feedback-status").textContent = statusText;
+    }};
     document.querySelectorAll(".feedback button").forEach((button) => {{
       button.addEventListener("click", () => {{
         const cell = button.closest(".feedback");
-        cell.classList.add("has-selection");
-        cell.querySelectorAll("button").forEach((item) => {{
-          const selected = item === button;
-          item.classList.toggle("active", selected);
-          item.setAttribute("aria-pressed", selected ? "true" : "false");
-        }});
         const label = actionLabels[button.dataset.action] || button.textContent.trim();
         const time = new Date().toLocaleTimeString("zh-CN", {{hour12:false}});
-        cell.querySelector(".feedback-status").textContent = "当前反馈：" + label + "，更新时间 " + time;
+        const storageKey = "radar-feedback:{REPORT_ID}:" + (cell.dataset.doi || cell.dataset.paperId || "");
+        try {{ localStorage.setItem(storageKey, button.dataset.action || ""); }} catch (_) {{}}
+        markSelection(cell, button.dataset.action || "", "当前反馈：" + label + "，更新时间 " + time);
         if (feedbackEndpoint) {{
-          const params = new URLSearchParams({{report_id:"{REPORT_ID}", paper_id:cell.dataset.paperId || "", action:button.dataset.action || ""}});
-          fetch(feedbackEndpoint + "?" + params.toString(), {{method:"GET", keepalive:true}}).catch(() => {{}});
+          const params = new URLSearchParams({{report_id:"{REPORT_ID}", paper_id:cell.dataset.paperId || "", doi:cell.dataset.doi || "", title_hash:cell.dataset.titleHash || "", action:button.dataset.action || "", token:feedbackToken}});
+          fetch(feedbackEndpoint + "?" + params.toString(), {{method:"GET", keepalive:true}})
+            .then((response) => {{ if (!response.ok) throw new Error("feedback rejected"); }})
+            .catch(() => {{ cell.querySelector(".feedback-status").textContent = "反馈提交失败；选择已保留在当前浏览器"; }});
         }}
       }});
+      const cell = button.closest(".feedback");
+      const storageKey = "radar-feedback:{REPORT_ID}:" + (cell.dataset.doi || cell.dataset.paperId || "");
+      try {{
+        if (localStorage.getItem(storageKey) === button.dataset.action) {{
+          markSelection(cell, button.dataset.action || "", "已恢复当前浏览器中的反馈：" + (actionLabels[button.dataset.action] || button.textContent.trim()));
+        }}
+      }} catch (_) {{}}
     }});
   }})();
 </script>
@@ -990,6 +1020,7 @@ def main():
         apply_quality_gate(item)
 
     seen_index = load_seen_index()
+    feedback_learning = apply_feedback_learning(items.values(), seen_index)
     show_seen = os.environ.get("RADAR_SHOW_SEEN", "").strip().lower() in {"1", "true", "yes"}
     pre_quality_recommended = [
         c for c in items.values()
@@ -1027,6 +1058,7 @@ def main():
         "quality_excluded_count": len(quality_excluded),
         "seen_filtered_count": len(seen_filtered),
         "seen_index": seen_update,
+        "feedback_learning": feedback_learning,
         "quality_gate": {
             "mode": CAS_PARTITION_MODE,
             "table": str(CAS_PARTITION_TABLE),

@@ -14,6 +14,7 @@ DEFAULT_RADAR_ARTIFACT_DIR = (
 RADAR_ARTIFACT_DIR = Path(os.environ.get("RADAR_ARTIFACT_DIR", DEFAULT_RADAR_ARTIFACT_DIR))
 RADAR_STATE_DIR = Path(os.environ.get("RADAR_STATE_DIR", str(RADAR_ARTIFACT_DIR / "state")))
 SEEN_INDEX_PATH = RADAR_STATE_DIR / "seen_papers.json"
+SEEN_INDEX_SEED_PATH = Path(os.environ.get("RADAR_SEEN_SEED_PATH", "data/seen_papers.seed.json"))
 
 
 def normalize_doi(value: str) -> str:
@@ -48,10 +49,13 @@ def candidate_identity(candidate) -> dict:
 
 
 def load_seen_index(path: Path = SEEN_INDEX_PATH) -> dict:
-    if not path.exists():
+    source_path = path
+    if not source_path.exists() and SEEN_INDEX_SEED_PATH.exists():
+        source_path = SEEN_INDEX_SEED_PATH
+    if not source_path.exists():
         return {"version": 1, "updated_at": "", "papers": {}}
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(source_path.read_text(encoding="utf-8"))
     except Exception:
         return {"version": 1, "updated_at": "", "papers": {}}
     if not isinstance(data, dict):
@@ -121,4 +125,58 @@ def update_seen_index(candidates, report_id: str, path: Path = SEEN_INDEX_PATH) 
         "path": str(path),
         "total": len(papers),
         "touched": touched,
+    }
+
+
+FEEDBACK_ACTIONS = {
+    "extremely_related",
+    "related",
+    "reference_only",
+    "irrelevant",
+    "downloaded",
+    "read",
+    "wrong",
+    "follow",
+    "less",
+}
+
+
+def feedback_action(entry: dict) -> str:
+    feedback = entry.get("feedback", "")
+    if isinstance(feedback, dict):
+        return str(feedback.get("action", "")).strip()
+    return str(feedback or "").strip()
+
+
+def merge_feedback_events(events: list[dict], path: Path = SEEN_INDEX_PATH) -> dict:
+    index = load_seen_index(path)
+    papers = index.setdefault("papers", {})
+    accepted = 0
+    ignored = 0
+    for event in events:
+        doi = normalize_doi(str(event.get("doi", "")))
+        hashed_title = str(event.get("title_hash", "")).strip().lower()
+        action = str(event.get("action", "")).strip()
+        if action not in FEEDBACK_ACTIONS or (not doi and not hashed_title):
+            ignored += 1
+            continue
+        key = f"doi:{doi}" if doi else f"title:{hashed_title}"
+        entry = papers.setdefault(
+            key,
+            {"doi": doi, "title_hash": hashed_title, "feedback": ""},
+        )
+        entry["doi"] = entry.get("doi") or doi
+        entry["title_hash"] = entry.get("title_hash") or hashed_title
+        entry["feedback"] = {
+            "action": action,
+            "updated_at": str(event.get("timestamp") or event.get("updated_at") or ""),
+        }
+        accepted += 1
+    if accepted:
+        save_seen_index(index, path)
+    return {
+        "path": str(path),
+        "accepted": accepted,
+        "ignored": ignored,
+        "total": len(papers),
     }

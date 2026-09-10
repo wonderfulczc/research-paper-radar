@@ -31,7 +31,8 @@ from priority_venues import (
 
 
 TODAY = date.today()
-START = TODAY - timedelta(days=61)
+LOOKBACK_DAYS = int(os.environ.get("RADAR_LOOKBACK_DAYS", "61") or "61")
+START = TODAY - timedelta(days=max(1, LOOKBACK_DAYS))
 REPORT_ID = f"RADAR-{TODAY.isoformat()}"
 BASE = "https://api.openalex.org/works"
 OPENALEX_TIMEOUT_SECONDS = int(os.environ.get("OPENALEX_TIMEOUT_SECONDS", "20"))
