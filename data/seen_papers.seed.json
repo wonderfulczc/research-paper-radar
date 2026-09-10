@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "updated_at": "2026-06-13T07:24:31.335739+00:00",
+  "papers": {
+    "doi:10.1109/ted.2024.3392182": {
+      "doi": "10.1109/ted.2024.3392182",
+      "title_hash": "4daf878b4aee31148232",
+      "feedback": ""
+    },
+    "doi:10.1038/s44460-026-00033-3": {
+      "doi": "10.1038/s44460-026-00033-3",
+      "title_hash": "043e7eb8a94bf3e6b285",
+      "feedback": ""
+    },
+    "doi:10.1016/j.device.2024.100437": {
+      "doi": "10.1016/j.device.2024.100437",
+      "title_hash": "69718f36d362b0f4b58e",
+      "feedback": ""
+    },
+    "doi:10.1126/sciadv.adt0318": {
+      "doi": "10.1126/sciadv.adt0318",
+      "title_hash": "0fb0b8a18bf74210b6ba",
+      "feedback": ""
+    },
+    "doi:10.1016/j.nanoen.2025.111439": {
+      "doi": "10.1016/j.nanoen.2025.111439",
+      "title_hash": "813139f8e6de01d77d44",
+      "feedback": ""
+    },
+    "doi:10.1038/s41378-025-00987-3": {
+      "doi": "10.1038/s41378-025-00987-3",
+      "title_hash": "6d256fe253cd63337ea2",
+      "feedback": ""
+    },
+    "doi:10.1016/j.nanoen.2025.110671": {
+      "doi": "10.1016/j.nanoen.2025.110671",
+      "title_hash": "d71153437d5e6393db97",
+      "feedback": ""
+    },
+    "doi:10.1016/j.nanoen.2024.109987": {
+      "doi": "10.1016/j.nanoen.2024.109987",
+      "title_hash": "4a5077be292ccd7b6e9f",
+      "feedback": ""
+    },
+    "doi:10.1002/smtd.202301670": {
+      "doi": "10.1002/smtd.202301670",
+      "title_hash": "f28dbb34bfd199aedde9",
+      "feedback": ""
+    },
+    "doi:10.1002/adfm.202410661": {
+      "doi": "10.1002/adfm.202410661",
+      "title_hash": "34e6728297678cd8fa02",
+      "feedback": ""
+    },
+    "doi:10.20517/ss.2025.72": {
+      "doi": "10.20517/ss.2025.72",
+      "title_hash": "8d9bb8e55126fe9977cd",
+      "feedback": ""
+    },
+    "doi:10.1038/s41467-025-56679-z": {
+      "doi": "10.1038/s41467-025-56679-z",
+      "title_hash": "ed28b09a5d3860ea4efb",
+      "feedback": ""
+    },
+    "doi:10.1038/s41467-024-54980-x": {
+      "doi": "10.1038/s41467-024-54980-x",
+      "title_hash": "4328f9361e13caf6b81a",
+      "feedback": ""
+    },
+    "doi:10.1126/sciadv.ads2291": {
+      "doi": "10.1126/sciadv.ads2291",
+      "title_hash": "1cc0d30a18d2c9453e73",
+      "feedback": ""
+    }
+  }
+}
