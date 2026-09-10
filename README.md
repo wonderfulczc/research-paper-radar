@@ -23,9 +23,10 @@
 - Crossref DOI 元数据作为无 key 摘要兜底源
 - Springer Nature Meta API 补充 Nature/Springer 旗下论文摘要
 - Elsevier API 补充 ScienceDirect/Scopus 元数据与摘要
-- DOI/title-hash 去重，只保存轻量 `doi`、`title_hash`、`feedback`
+- DOI/title-hash 跨 GitHub run 去重，只持久化轻量 `doi`、`title_hash`、`feedback`
 - 生成紧凑 HTML 表格报告和 JSON 运行结果
-- GitHub Actions 支持手动运行和双月定时运行
+- GitHub Actions 支持手动运行和由仓库变量控制的定时运行
+- 可选反馈接收端与反馈事件导入，按正负样例透明调整后续相关性分数
 - GitHub Actions 可选 SMTP 邮件发送；本地默认不发送邮件
 
 ### 仓库结构
@@ -35,11 +36,16 @@
 ├── SKILL.md                         # Codex skill entrypoint
 ├── agents/                          # Skill metadata
 ├── references/                      # Scope, source strategy, rubric, report schema
+├── data/seen_papers.seed.json       # Initial lightweight deduplication seed
 ├── work/                            # Runnable radar scripts
 │   ├── three_year_top_scout.py       # Main 3-year scout
 │   ├── openalex_radar.py             # Short-window OpenAlex radar
 │   ├── *_enrich.py                   # API enrichment adapters
 │   ├── radar_state.py                # Artifact/state paths and seen index
+│   ├── schedule_gate.py               # Configurable interval gate
+│   ├── sync_feedback.py               # Optional feedback event importer
+│   ├── feedback_learning.py           # Conservative feedback weighting
+│   ├── keepalive.py                   # Public-repository schedule keepalive
 │   └── journal_quartiles.csv         # Optional CAS/JCR/Scopus table template
 └── .github/workflows/
     └── research-paper-radar.yml      # Manual/scheduled GitHub Actions workflow
@@ -111,7 +117,7 @@ OpenAlex 是主检索源，不需要 key。Crossref 是 DOI 摘要兜底源，�
 GitHub Actions 有两种使用方式：
 
 - 手动测试：在 Actions 页面点击 `research-paper-radar` -> `Run workflow`，可临时设置 `query_limit`、`show_seen`、`send_email`
-- 定期检索：由 `.github/workflows/research-paper-radar.yml` 中的 `schedule` 自动触发，当前默认每两个月运行一次
+- 定期检索：GitHub 每天进行一次轻量到期检查，仅在 `RADAR_INTERVAL_DAYS` 到期时执行真实检索，默认 60 天
 
 在 GitHub 仓库中依次进入以下页面配置变量和密钥：
 
@@ -247,30 +253,35 @@ SMTP_PASSWORD=163邮箱客户端授权码
    - `send_email=1` 强制测试邮件发送
 5. 手动测试通过后，保留 `schedule` 配置即可自动定期运行。
 
-当前定期检索周期写在 `.github/workflows/research-paper-radar.yml`：
+工作流每天北京时间约 09:17 唤醒一次，只做轻量到期判断：
 
 ```yaml
 schedule:
-  - cron: "0 1 1 */2 *"
+  - cron: "17 1 * * *"
 ```
 
-该 cron 使用 UTC 时间，当前表示每两个月的 1 日 01:00 UTC 运行一次。常见修改：
+真实检索周期不再写死在 YAML。请在 `Repository variables` 设置：
 
-```yaml
-# 每月 1 日 01:00 UTC
-- cron: "0 1 1 * *"
-
-# 每两个月 1 日 01:00 UTC
-- cron: "0 1 1 */2 *"
-
-# 每周一 01:00 UTC
-- cron: "0 1 * * 1"
+```text
+RADAR_SCHEDULE_ENABLED=1
+RADAR_INTERVAL_DAYS=60
+RADAR_LOOKBACK_DAYS=0
+RADAR_KEEPALIVE_DAYS=45
+RADAR_SCHEDULE_INITIAL_LAST_RUN=2026-09-01
 ```
+
+- `RADAR_INTERVAL_DAYS`：两次真实检索之间的天数；例如 `7`、`30`、`60`、`90`，修改变量即可生效
+- `RADAR_SCHEDULE_ENABLED`：`1` 启用，`0` 暂停真实定时检索
+- `RADAR_LOOKBACK_DAYS`：检索回溯窗口；`0` 保持默认近 3 年，`60` 表示只检索近 60 天
+- `RADAR_KEEPALIVE_DAYS`：公共仓库自动保活提交阈值，默认 45 天，不建议设为 60 或更大
+- `RADAR_SCHEDULE_INITIAL_LAST_RUN`：首次启用状态缓存时使用的最近成功定时运行日期；后续由状态文件自动维护
+
+GitHub 会在公共仓库连续 60 天无活动时自动禁用计划任务。工作流会在仓库提交距今 45 天时写入 `.github/radar-keepalive`，并生成带 `CI reason:` 的轻量提交，避免再次因 inactivity 停止。若默认分支受保护导致自动提交失败，Actions 日志会显示警告，需要手动产生一次仓库提交或将仓库改为 private。
 
 工作流支持：
 
 - `workflow_dispatch`：手动运行，可设置 `query_limit`、`show_seen` 和 `send_email`
-- `schedule`：默认每两个月运行一次；配好收件邮箱和发件 SMTP 通道后会发送邮件
+- `schedule`：每天检查一次是否到期；默认每 60 天真实检索并发送邮件
 
 GitHub 运行产物会被上传为 artifact：
 
@@ -316,9 +327,27 @@ docs: clarify scheduled radar email setup
 CI reason: document the tested Foxmail-to-163 workflow and cron configuration so future Actions runs are reproducible.
 ```
 
-### 反馈说明
+### 反馈记忆与学习
 
-HTML 中的反馈按钮可以展示选择状态；自动持久反馈需要额外的 feedback receiver。当前仓库已保留 `feedback` 字段和相关架构说明，但不会把静态 HTML 的点击自动写回 JSON。
+去重记忆已经在 GitHub Actions 中通过私有 Actions cache 跨 run 恢复和保存；只缓存 `state/`，不会把大型报告或 API 缓存长期累积。已经推荐过的 DOI/title hash 默认不会在下次主表重复出现。
+
+HTML 按钮会在当前浏览器中保留选择。要让反馈真正进入下一轮学习，还需要一个可接收点击并导出 JSON/JSONL 的 HTTPS feedback receiver。配置项如下：
+
+Repository variables 或 secrets：
+
+```text
+RADAR_FEEDBACK_ENDPOINT=https://你的接收端/record
+RADAR_FEEDBACK_SOURCE_URL=https://你的接收端/events
+```
+
+Repository secrets，可选：
+
+```text
+RADAR_FEEDBACK_WRITE_TOKEN=点击提交用的低权限 token
+RADAR_FEEDBACK_READ_TOKEN=读取反馈事件用的 token
+```
+
+事件至少包含 `doi` 或 `title_hash`，以及 `action`。支持 `extremely_related`、`related`、`reference_only`、`irrelevant`、`wrong`、`less` 等动作。下一轮会把反馈合并进轻量 `seen_papers.json`，只对已经通过课题硬门槛的候选做保守加权或降权，不会让反馈把纯 TENG、泛无线传感等越界论文抬进推荐表。未配置接收端时，页面选择只是本地视觉记忆，项目不能读取，也不能据此学习。
 
 ### 边界
 
@@ -347,7 +376,7 @@ It is not a generic TENG search tool and not a long-form literature review gener
 - Enriches Nature/Springer records with Springer Nature Meta API
 - Enriches Elsevier/ScienceDirect/Scopus records with Elsevier APIs
 - Deduplicates by DOI and normalized-title hash
-- Stores only lightweight seen-state fields: `doi`, `title_hash`, and `feedback`
+- Persists only lightweight seen-state fields across GitHub runs: `doi`, `title_hash`, and `feedback`
 - Produces compact HTML reports and machine-readable JSON
 - Runs locally or through GitHub Actions
 - Can send scheduled GitHub reports by configurable SMTP email; local runs skip email by default
@@ -385,7 +414,7 @@ Local runs do not send email by default and do not require any `RADAR_EMAIL_*` o
 The GitHub workflow supports two modes:
 
 - Manual test: open `Actions -> research-paper-radar -> Run workflow`, then set `query_limit`, `show_seen`, and `send_email`.
-- Scheduled radar: `.github/workflows/research-paper-radar.yml` runs automatically on the configured cron schedule.
+- Scheduled radar: GitHub wakes daily for a lightweight due check and performs a real search only when `RADAR_INTERVAL_DAYS` has elapsed.
 
 Configure repository secrets and variables under:
 
@@ -513,27 +542,39 @@ For any other provider, use the same rule: `RADAR_EMAIL_TO` is the recipient, `R
    - `send_email=1` to force email delivery testing
 5. After a successful manual run, keep the `schedule` entry enabled for unattended runs.
 
-The current schedule lives in `.github/workflows/research-paper-radar.yml`:
+The workflow wakes daily at about 01:17 UTC:
 
 ```yaml
 schedule:
-  - cron: "0 1 1 */2 *"
+  - cron: "17 1 * * *"
 ```
 
-GitHub cron uses UTC. The current value means 01:00 UTC on the first day of every two months. Common alternatives:
+The real search interval is configured under Repository variables:
 
-```yaml
-# Monthly, day 1, 01:00 UTC
-- cron: "0 1 1 * *"
-
-# Every two months, day 1, 01:00 UTC
-- cron: "0 1 1 */2 *"
-
-# Every Monday, 01:00 UTC
-- cron: "0 1 * * 1"
+```text
+RADAR_SCHEDULE_ENABLED=1
+RADAR_INTERVAL_DAYS=60
+RADAR_LOOKBACK_DAYS=0
+RADAR_KEEPALIVE_DAYS=45
+RADAR_SCHEDULE_INITIAL_LAST_RUN=2026-09-01
 ```
+
+Change `RADAR_INTERVAL_DAYS` to any practical whole-day interval such as `7`, `30`, `60`, or `90`. `RADAR_LOOKBACK_DAYS=0` keeps the default three-year search window; a positive value overrides it. `RADAR_SCHEDULE_INITIAL_LAST_RUN` seeds the cadence until the first cached schedule state is written. Public repositories have scheduled workflows disabled by GitHub after 60 days without repository activity, so the workflow creates a lightweight keepalive commit after 45 inactive days. Protected default branches may require a manual commit or a private repository instead.
 
 The workflow stores outputs under `artifacts/research_paper_radar` and uploads them as a GitHub Actions artifact.
+
+### Persistent Memory And Feedback Learning
+
+The workflow restores and saves `artifacts/research_paper_radar/state` with GitHub Actions cache. Reports and large API caches are not kept in the persistent state cache. This makes DOI/title-hash deduplication work across scheduled runs.
+
+HTML feedback can influence later runs only when a feedback receiver is configured:
+
+```text
+RADAR_FEEDBACK_ENDPOINT=https://your-endpoint.example/record
+RADAR_FEEDBACK_SOURCE_URL=https://your-endpoint.example/events
+```
+
+Optional repository secrets are `RADAR_FEEDBACK_WRITE_TOKEN` and `RADAR_FEEDBACK_READ_TOKEN`. Without a receiver, button state remains a browser-local convenience and cannot be learned by GitHub Actions. Imported feedback conservatively adjusts candidates that already passed the hard topic gate; it never overrides the core scope boundary.
 
 #### 7. Email Troubleshooting
 
