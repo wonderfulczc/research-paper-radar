@@ -15,11 +15,19 @@ on:
         description: "Email report: 0 skip, 1 require sender SMTP, auto send if fully configured"
         required: false
         default: "0"
+      lookback_days:
+        description: "Override search lookback in days; 0 uses repository setting/default three years"
+        required: false
+        default: "0"
   schedule:
-    - cron: "0 1 1 */2 *"
+    - cron: "17 1 * * *"
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: research-paper-radar
+  cancel-in-progress: false
 
 jobs:
   radar:
@@ -30,6 +38,11 @@ jobs:
       RADAR_ARTIFACT_DIR: artifacts/research_paper_radar
       RADAR_SHOW_SEEN: ${{ github.event.inputs.show_seen || '0' }}
       RADAR_QUERY_LIMIT: ${{ github.event.inputs.query_limit || '0' }}
+      RADAR_LOOKBACK_DAYS: ${{ github.event.inputs.lookback_days != '0' && github.event.inputs.lookback_days || vars.RADAR_LOOKBACK_DAYS || '0' }}
+      RADAR_SCHEDULE_ENABLED: ${{ vars.RADAR_SCHEDULE_ENABLED || '1' }}
+      RADAR_INTERVAL_DAYS: ${{ vars.RADAR_INTERVAL_DAYS || '60' }}
+      RADAR_KEEPALIVE_DAYS: ${{ vars.RADAR_KEEPALIVE_DAYS || '45' }}
+      RADAR_SCHEDULE_INITIAL_LAST_RUN: ${{ vars.RADAR_SCHEDULE_INITIAL_LAST_RUN || '2026-09-01' }}
       SEMANTIC_SCHOLAR_API_KEY: ${{ secrets.SEMANTIC_SCHOLAR_API_KEY }}
       SPRINGER_NATURE_API_KEY: ${{ secrets.SPRINGER_NATURE_API_KEY }}
       ELSEVIER_API_KEY: ${{ secrets.ELSEVIER_API_KEY }}
@@ -56,23 +69,55 @@ jobs:
       SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
       SMTP_USE_TLS: ${{ secrets.SMTP_USE_TLS || vars.SMTP_USE_TLS }}
       SMTP_USE_SSL: ${{ secrets.SMTP_USE_SSL || vars.SMTP_USE_SSL }}
+      RADAR_FEEDBACK_ENDPOINT: ${{ secrets.RADAR_FEEDBACK_ENDPOINT || vars.RADAR_FEEDBACK_ENDPOINT }}
+      RADAR_FEEDBACK_WRITE_TOKEN: ${{ secrets.RADAR_FEEDBACK_WRITE_TOKEN }}
+      RADAR_FEEDBACK_SOURCE_URL: ${{ secrets.RADAR_FEEDBACK_SOURCE_URL || vars.RADAR_FEEDBACK_SOURCE_URL }}
+      RADAR_FEEDBACK_READ_TOKEN: ${{ secrets.RADAR_FEEDBACK_READ_TOKEN }}
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.13"
 
+      - name: Restore radar memory
+        id: radar-state-restore
+        uses: actions/cache/restore@v6
+        with:
+          path: artifacts/research_paper_radar/state
+          key: radar-state-${{ github.run_id }}
+          restore-keys: |
+            radar-state-
+
+      - name: Check configurable schedule
+        id: schedule-gate
+        run: python work/schedule_gate.py check
+
       - name: Compile scripts
+        if: steps.schedule-gate.outputs.should_run == 'true'
         run: python -m py_compile work/*.py
 
-      - name: Run three-year radar
+      - name: Import persistent feedback
+        if: steps.schedule-gate.outputs.should_run == 'true'
+        continue-on-error: true
+        run: python work/sync_feedback.py
+
+      - name: Run literature radar
+        id: radar
+        if: steps.schedule-gate.outputs.should_run == 'true'
         run: python work/three_year_top_scout.py
 
+      - name: Mark successful scheduled run
+        if: steps.radar.outcome == 'success'
+        run: python work/schedule_gate.py mark
+
       - name: Upload radar artifacts
+        if: steps.radar.outcome == 'success'
         uses: actions/upload-artifact@v7
         with:
           name: research-paper-radar-${{ github.run_id }}
@@ -80,4 +125,17 @@ jobs:
           if-no-files-found: error
 
       - name: Send email report
+        if: steps.radar.outcome == 'success'
         run: python work/send_radar_email.py
+
+      - name: Save radar memory
+        if: always() && steps.radar.outcome == 'success'
+        uses: actions/cache/save@v6
+        with:
+          path: artifacts/research_paper_radar/state
+          key: radar-state-${{ github.run_id }}
+
+      - name: Keep public-repository schedule active
+        if: always() && github.event_name == 'schedule'
+        continue-on-error: true
+        run: python work/keepalive.py
