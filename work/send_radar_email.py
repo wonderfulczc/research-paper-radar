@@ -244,7 +244,7 @@ def recommendation_lines(payload: dict, limit: int = 10) -> list[str]:
     if len(papers) > limit:
         lines.append(f"- ... and {len(papers) - limit} more in the attached HTML report.")
     if not lines:
-        lines.append("- No recommended papers in this run.")
+        lines.append("- 本期暂无符合筛选标准的合适文献。 / No suitable papers were found in this run.")
     return lines
 
 
@@ -254,6 +254,8 @@ def build_subject(payload: dict) -> str:
     recommended = payload.get("recommended_count")
     if recommended is None:
         recommended = len(payload.get("recommended") or payload.get("included") or [])
+    if int(recommended or 0) == 0:
+        return f"{prefix}: {report_id} (本期暂无合适文献)"
     return f"{prefix}: {report_id} ({recommended} recommended)"
 
 
@@ -265,8 +267,13 @@ def build_text_body(payload: dict, report_path: Path, json_path: Path | None) ->
         recommended = len(payload.get("recommended") or payload.get("included") or [])
     top_count = payload.get("top_venue_recommended_count", "")
 
+    opening = (
+        "本期检索完成，当前没有符合筛选标准的合适文献。"
+        if int(recommended or 0) == 0
+        else "Research Paper Radar report is attached."
+    )
     parts = [
-        "Research Paper Radar report is attached.",
+        opening,
         "",
         f"Report ID: {report_id}",
         f"Window: {' to '.join(window) if isinstance(window, list) else window}",
@@ -296,12 +303,17 @@ def build_html_body(payload: dict, report_path: Path, json_path: Path | None) ->
     recommended = payload.get("recommended_count")
     if recommended is None:
         recommended = len(payload.get("recommended") or payload.get("included") or [])
+    opening = (
+        "本期检索完成，当前没有符合筛选标准的合适文献。"
+        if int(recommended or 0) == 0
+        else "Research Paper Radar report is attached."
+    )
     items = "".join(f"<li>{html.escape(line[2:] if line.startswith('- ') else line)}</li>" for line in lines)
     json_text = html.escape(json_path.name if json_path else "(not attached)")
     return f"""<!doctype html>
 <html>
 <body>
-  <p>Research Paper Radar report is attached.</p>
+  <p>{html.escape(opening)}</p>
   <ul>
     <li><b>Report ID:</b> {report_id}</li>
     <li><b>Window:</b> {html.escape(window_text)}</li>

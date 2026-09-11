@@ -1045,6 +1045,12 @@ def main():
         ),
         reverse=True,
     )
+    eligible_recommended_count = len(recommended)
+    try:
+        recommendation_limit = max(1, int(os.environ.get("RADAR_MAX_RECOMMENDATIONS", "10")))
+    except ValueError:
+        recommendation_limit = 10
+    recommended = recommended[:recommendation_limit]
     seen_update = update_seen_index(quality_allowed, REPORT_ID)
 
     payload = {
@@ -1054,6 +1060,8 @@ def main():
         "candidate_count": len(items),
         "seed_candidate_count": seed_added,
         "pre_quality_recommended_count": len(pre_quality_recommended),
+        "eligible_recommended_count": eligible_recommended_count,
+        "recommendation_limit": recommendation_limit,
         "recommended_count": len(recommended),
         "quality_excluded_count": len(quality_excluded),
         "seen_filtered_count": len(seen_filtered),
@@ -1103,6 +1111,7 @@ def main():
     print(f"Seen index: {seen_update['path']} total={seen_update['total']} touched={seen_update['touched']}")
     print(f"CAS partition mode: {CAS_PARTITION_MODE} table={CAS_PARTITION_TABLE}")
     print(f"Recommended: {len(recommended)}")
+    print(f"Eligible before report limit: {eligible_recommended_count}; report limit: {recommendation_limit}")
     print(f"Top/strong recommended: {payload['top_venue_recommended_count']}")
     print(
         "Semantic Scholar enrichment: "
