@@ -24,6 +24,8 @@
 - Springer Nature Meta API 补充 Nature/Springer 旗下论文摘要
 - Elsevier API 补充 ScienceDirect/Scopus 元数据与摘要
 - DOI/title-hash 跨 GitHub run 去重，只持久化轻量 `doi`、`title_hash`、`feedback`
+- 只把实际进入 HTML/邮件的论文记为“已推送”；超过本期上限但未展示的合格论文不会被提前消耗
+- 可选 DeepL 摘要翻译，只翻译最终入选论文并在 JSON 中保留英文原文
 - 生成紧凑 HTML 表格报告和 JSON 运行结果
 - GitHub Actions 支持手动运行和由仓库变量控制的定时运行
 - 可选反馈接收端与反馈事件导入，按正负样例透明调整后续相关性分数
@@ -109,6 +111,7 @@ python work\three_year_top_scout.py
 | Springer Nature | `SPRINGER_NATURE_API_KEY` | Nature/Springer Meta API 摘要补全 |
 | Elsevier | `ELSEVIER_API_KEY` | Scopus / ScienceDirect 元数据与摘要补全 |
 | Elsevier optional | `ELSEVIER_INSTTOKEN` | 机构权限 token，可选 |
+| DeepL | `DEEPL_API_KEY` | 把最终入选论文摘要翻译为简体中文；可选，不参与检索 |
 
 OpenAlex 是主检索源，不需要 key。Crossref 是 DOI 摘要兜底源，不需要 key。Semantic Scholar 支持无 key 公开调用；如需强制必须使用 key，可设置 `SEMANTIC_SCHOLAR_REQUIRE_KEY=1`。
 
@@ -278,6 +281,43 @@ RADAR_SCHEDULE_INITIAL_LAST_RUN=2026-09-01
 - `RADAR_KEEPALIVE_DAYS`：公共仓库自动保活提交阈值，默认 45 天，不建议设为 60 或更大
 - `RADAR_SCHEDULE_INITIAL_LAST_RUN`：首次启用状态缓存时使用的最近成功定时运行日期；后续由状态文件自动维护
 
+#### 7. 中文摘要翻译
+
+文献数据 API 通常只返回论文原始摘要，不负责翻译。若希望 HTML 的摘要列直接显示中文，在 `Repository variables` 设置：
+
+```text
+RADAR_TRANSLATE_ABSTRACTS=1
+```
+
+并在 `Repository secrets` 添加：
+
+```text
+DEEPL_API_KEY=你的 DeepL API key
+```
+
+DeepL Free key 会自动使用 `api-free.deepl.com`，Pro key使用 `api.deepl.com`。如需覆盖地址，可设置 Repository variable `DEEPL_API_URL`。翻译失败不会中断雷达，本期会回退显示原始摘要；英文原文始终保留在 JSON 的 `abstract` 字段，中文译文写入 `abstract_zh`。
+
+#### 8. 去重与不足 10 篇时的行为
+
+每轮先完成配置范围内的候选检索和摘要补全，再进行机制与质量筛选，然后用 DOI、无 DOI 时用标准化标题 hash 排除以前实际推送过的论文，最后排序并截取 `RADAR_MAX_RECOMMENDATIONS` 篇。只有这批真正写进 HTML/邮件的论文会进入 `state/seen_papers.json`。
+
+系统不会为了凑满 10 篇而放宽门槛，也不会在不足 10 篇时无限追加新查询；合格论文不足时发送实际数量，完全没有合格论文时发送“本期暂无合适文献”。本轮排名在第 11 名之后而未展示的合格论文不会被标记为已推送，后续仍可参与排序。
+
+#### 9. 反馈学习
+
+配置 `RADAR_FEEDBACK_ENDPOINT` 和 `RADAR_FEEDBACK_SOURCE_URL` 后，HTML 点击反馈会写入接收端，后续 Action 在检索前导入反馈并按相似机制、期刊和题名线索加权或降权。它是透明的规则/权重学习，不是重新训练模型，也不会让负反馈绕过课题硬门槛。
+
+未配置反馈接收端时，选择只存在当前浏览器。完成一轮反馈后可点击 HTML 顶部的“导出本期反馈 JSON”，把文件交给 Codex；Codex 可将其导入并结合多轮反馈调整筛选词、排除条件和权重，再提交到仓库。建议先积累 2 至 3 轮反馈再做一次规则校准，避免用单轮偶然偏好过拟合。
+
+也可以在本地直接导入导出的文件：
+
+```powershell
+$env:RADAR_FEEDBACK_SOURCE_URL="C:\path\to\radar_feedback_YYYY-MM-DD.json"
+python work\sync_feedback.py
+```
+
+自动学习仍需配置 HTTPS 反馈接收端；静态 HTML 本身不能安全地保存 GitHub token，也不能直接改写仓库状态。
+
 GitHub 会在公共仓库连续 60 天无活动时自动禁用计划任务。工作流会在仓库提交距今 45 天时写入 `.github/radar-keepalive`，并生成带 `CI reason:` 的轻量提交，避免再次因 inactivity 停止。若默认分支受保护导致自动提交失败，Actions 日志会显示警告，需要手动产生一次仓库提交或将仓库改为 private。
 
 工作流支持：
@@ -295,7 +335,7 @@ artifacts/research_paper_radar/
 └── cache/*.json
 ```
 
-#### 7. 邮件故障排查
+#### 10. 邮件故障排查
 
 发送邮件前，日志会输出脱敏诊断信息，例如：
 
@@ -311,7 +351,7 @@ Email config: recipient_configured=True, from_configured=True, username_configur
 - Foxmail/QQ 发件时，`RADAR_EMAIL_FROM` 与 `SMTP_USERNAME` 是否完全一致
 - `SMTP_PASSWORD` 是否为 SMTP/IMAP 授权码，而不是网页登录密码
 
-#### 8. 维护和提交约定
+#### 11. 维护和提交约定
 
 每次修改 GitHub Actions、邮件发送、定期检索或 CI 相关逻辑后，`git commit` 信息需要写清楚本次 CI 变化原因。推荐格式：
 
@@ -379,6 +419,8 @@ It is not a generic TENG search tool and not a long-form literature review gener
 - Enriches Elsevier/ScienceDirect/Scopus records with Elsevier APIs
 - Deduplicates by DOI and normalized-title hash
 - Persists only lightweight seen-state fields across GitHub runs: `doi`, `title_hash`, and `feedback`
+- Marks only papers actually included in the HTML/email as seen; eligible overflow is not consumed early
+- Optionally translates only the final selected abstracts with DeepL while retaining the English source in JSON
 - Produces compact HTML reports and machine-readable JSON
 - Runs locally or through GitHub Actions
 - Can send scheduled GitHub reports by configurable SMTP email; local runs skip email by default
@@ -432,6 +474,7 @@ Recommended repository secrets:
 - `SPRINGER_NATURE_API_KEY`
 - `ELSEVIER_API_KEY`
 - `ELSEVIER_INSTTOKEN` optional
+- `DEEPL_API_KEY` optional, for Simplified Chinese abstract translation only
 
 These keys are used for abstract, citation, and publisher metadata enrichment in GitHub Actions. Local runs can use the same names as environment variables.
 
@@ -556,6 +599,7 @@ The real search interval is configured under Repository variables:
 ```text
 RADAR_SCHEDULE_ENABLED=1
 RADAR_INTERVAL_DAYS=60
+RADAR_MAX_RECOMMENDATIONS=10
 RADAR_LOOKBACK_DAYS=0
 RADAR_KEEPALIVE_DAYS=45
 RADAR_SCHEDULE_INITIAL_LAST_RUN=2026-09-01
@@ -564,6 +608,28 @@ RADAR_SCHEDULE_INITIAL_LAST_RUN=2026-09-01
 Change `RADAR_INTERVAL_DAYS` to any practical whole-day interval such as `7`, `30`, `60`, or `90`. `RADAR_MAX_RECOMMENDATIONS=10` limits each HTML/email report to the ten highest-ranked papers; a zero-result run still sends a clear no-suitable-paper notice. `RADAR_LOOKBACK_DAYS=0` keeps the default three-year search window; a positive value overrides it. `RADAR_SCHEDULE_INITIAL_LAST_RUN` seeds the cadence until the first cached schedule state is written. Public repositories have scheduled workflows disabled by GitHub after 60 days without repository activity, so the workflow creates a lightweight keepalive commit after 45 inactive days. Protected default branches may require a manual commit or a private repository instead.
 
 The workflow stores outputs under `artifacts/research_paper_radar` and uploads them as a GitHub Actions artifact.
+
+### Chinese Abstract Translation
+
+Scholarly metadata APIs normally return the source abstract and do not translate it. To show Simplified Chinese abstracts in HTML, set this repository variable:
+
+```text
+RADAR_TRANSLATE_ABSTRACTS=1
+```
+
+Add this repository secret:
+
+```text
+DEEPL_API_KEY=your DeepL API key
+```
+
+Free API keys automatically use `api-free.deepl.com`; Pro keys use `api.deepl.com`. `DEEPL_API_URL` can override the endpoint. Only the final selected papers are translated. A translation failure does not fail the radar and falls back to the source abstract; JSON retains the English `abstract` and stores the translation in `abstract_zh`.
+
+### Deduplication And Short Reports
+
+Each run first builds the configured candidate pool, enriches and screens it, removes papers actually sent in prior reports by DOI or normalized-title hash, ranks the remaining eligible papers, and finally selects `RADAR_MAX_RECOMMENDATIONS` papers. Only that final displayed/sent set is added to `state/seen_papers.json`.
+
+The radar does not lower its threshold or launch an unbounded second search merely to reach ten papers. It sends fewer when fewer qualify and sends a no-suitable-paper notice when none qualify. Eligible papers below the current report limit remain available for later ranking because they are not prematurely marked as sent.
 
 ### Persistent Memory And Feedback Learning
 
@@ -577,6 +643,10 @@ RADAR_FEEDBACK_SOURCE_URL=https://your-endpoint.example/events
 ```
 
 Optional repository secrets are `RADAR_FEEDBACK_WRITE_TOKEN` and `RADAR_FEEDBACK_READ_TOKEN`. Without a receiver, button state remains a browser-local convenience and cannot be learned by GitHub Actions. Imported feedback conservatively adjusts candidates that already passed the hard topic gate; it never overrides the core scope boundary.
+
+When no receiver is configured, finish the selections in the HTML and click `导出本期反馈 JSON`. The exported file can be given to Codex for import and rule calibration. Accumulating two or three runs before a permanent rule update is usually better than fitting the rubric to one run. This is transparent rule and score adjustment, not model retraining.
+
+The exported file can also be imported locally by setting `RADAR_FEEDBACK_SOURCE_URL` to its file path and running `python work/sync_feedback.py`. Fully automatic learning still requires an HTTPS receiver; a static HTML attachment cannot safely carry a GitHub token or directly rewrite repository state.
 
 #### 7. Email Troubleshooting
 
