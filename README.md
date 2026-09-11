@@ -265,12 +265,14 @@ schedule:
 ```text
 RADAR_SCHEDULE_ENABLED=1
 RADAR_INTERVAL_DAYS=60
+RADAR_MAX_RECOMMENDATIONS=10
 RADAR_LOOKBACK_DAYS=0
 RADAR_KEEPALIVE_DAYS=45
 RADAR_SCHEDULE_INITIAL_LAST_RUN=2026-09-01
 ```
 
 - `RADAR_INTERVAL_DAYS`：两次真实检索之间的天数；例如 `7`、`30`、`60`、`90`，修改变量即可生效
+- `RADAR_MAX_RECOMMENDATIONS`：每期 HTML 和邮件最多展示的推荐论文数，默认 `10`
 - `RADAR_SCHEDULE_ENABLED`：`1` 启用，`0` 暂停真实定时检索
 - `RADAR_LOOKBACK_DAYS`：检索回溯窗口；`0` 保持默认近 3 年，`60` 表示只检索近 60 天
 - `RADAR_KEEPALIVE_DAYS`：公共仓库自动保活提交阈值，默认 45 天，不建议设为 60 或更大
@@ -559,7 +561,7 @@ RADAR_KEEPALIVE_DAYS=45
 RADAR_SCHEDULE_INITIAL_LAST_RUN=2026-09-01
 ```
 
-Change `RADAR_INTERVAL_DAYS` to any practical whole-day interval such as `7`, `30`, `60`, or `90`. `RADAR_LOOKBACK_DAYS=0` keeps the default three-year search window; a positive value overrides it. `RADAR_SCHEDULE_INITIAL_LAST_RUN` seeds the cadence until the first cached schedule state is written. Public repositories have scheduled workflows disabled by GitHub after 60 days without repository activity, so the workflow creates a lightweight keepalive commit after 45 inactive days. Protected default branches may require a manual commit or a private repository instead.
+Change `RADAR_INTERVAL_DAYS` to any practical whole-day interval such as `7`, `30`, `60`, or `90`. `RADAR_MAX_RECOMMENDATIONS=10` limits each HTML/email report to the ten highest-ranked papers; a zero-result run still sends a clear no-suitable-paper notice. `RADAR_LOOKBACK_DAYS=0` keeps the default three-year search window; a positive value overrides it. `RADAR_SCHEDULE_INITIAL_LAST_RUN` seeds the cadence until the first cached schedule state is written. Public repositories have scheduled workflows disabled by GitHub after 60 days without repository activity, so the workflow creates a lightweight keepalive commit after 45 inactive days. Protected default branches may require a manual commit or a private repository instead.
 
 The workflow stores outputs under `artifacts/research_paper_radar` and uploads them as a GitHub Actions artifact.
 
