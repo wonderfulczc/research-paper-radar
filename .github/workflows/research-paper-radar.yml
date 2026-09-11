@@ -19,6 +19,10 @@ on:
         description: "Override search lookback in days; 0 uses repository setting/default three years"
         required: false
         default: "0"
+      max_recommendations:
+        description: "Maximum papers included in the report/email; 0 uses repository setting/default 10"
+        required: false
+        default: "0"
   schedule:
     - cron: "17 1 * * *"
 
@@ -39,6 +43,7 @@ jobs:
       RADAR_SHOW_SEEN: ${{ github.event.inputs.show_seen || '0' }}
       RADAR_QUERY_LIMIT: ${{ github.event.inputs.query_limit || '0' }}
       RADAR_LOOKBACK_DAYS: ${{ github.event.inputs.lookback_days != '0' && github.event.inputs.lookback_days || vars.RADAR_LOOKBACK_DAYS || '0' }}
+      RADAR_MAX_RECOMMENDATIONS: ${{ github.event.inputs.max_recommendations != '0' && github.event.inputs.max_recommendations || vars.RADAR_MAX_RECOMMENDATIONS || '10' }}
       RADAR_SCHEDULE_ENABLED: ${{ vars.RADAR_SCHEDULE_ENABLED || '1' }}
       RADAR_INTERVAL_DAYS: ${{ vars.RADAR_INTERVAL_DAYS || '60' }}
       RADAR_KEEPALIVE_DAYS: ${{ vars.RADAR_KEEPALIVE_DAYS || '45' }}
