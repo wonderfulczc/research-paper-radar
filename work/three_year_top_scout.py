@@ -18,6 +18,7 @@ from crossref_enrich import crossref_enrich_candidates
 from springer_nature_enrich import springer_nature_enrich_candidates
 from elsevier_enrich import elsevier_enrich_candidates
 from feedback_learning import apply_feedback_learning
+from abstract_translation import translate_abstracts
 from mechanism_terms import MECHANISM_TERMS
 from radar_state import RADAR_ARTIFACT_DIR, SEEN_INDEX_PATH, load_seen_index, split_unseen, title_hash, update_seen_index
 from priority_venues import (
@@ -216,6 +217,7 @@ class Candidate:
     venue: str
     landing: str
     abstract: str
+    abstract_zh: str = ""
     abstract_source: str = "not retrieved"
     queries: set = field(default_factory=set)
     tracks: set = field(default_factory=set)
@@ -743,7 +745,40 @@ def classify(candidate: Candidate):
         else:
             candidate.reason = "未通过严格课题门槛。"
     if candidate.level != "exclude":
-        candidate.reason = f"{candidate.reason} 机制组合：{candidate.mechanism_pair}。"
+        candidate.reason = explain_relevance(candidate, profile)
+
+
+def first_matching_term(text: str, terms: list[str]) -> str:
+    low = (text or "").lower()
+    return next((term for term in terms if term in low), "")
+
+
+def explain_relevance(candidate: Candidate, profile: dict) -> str:
+    text = " ".join([candidate.title, candidate.abstract])
+    evidence = []
+    if profile["self_powered"] or profile["tribo_or_friction"]:
+        term = first_matching_term(
+            text,
+            MECHANISM_TERMS["self_powered"] + MECHANISM_TERMS["tribo_or_friction"],
+        )
+        evidence.append(f"A：{term or '自供能/摩擦电激发'}")
+    if profile["discharge_or_em_generation"]:
+        term = first_matching_term(text, MECHANISM_TERMS["discharge_or_em_generation"])
+        evidence.append(f"B：{term or '击穿放电/电磁波生成'}")
+    if profile["wireless_or_communication"] or profile["sensing_or_system"]:
+        term = first_matching_term(
+            text,
+            MECHANISM_TERMS["wireless_or_communication"] + MECHANISM_TERMS["sensing_or_system"],
+        )
+        evidence.append(f"C：{term or '无线通信/传感系统'}")
+    evidence_text = "；".join(evidence) or "未提取到明确机制词"
+    if candidate.mechanism_pair == "A+B+C":
+        relation = "覆盖激发、放电/电磁信号生成和无线传感应用的完整课题链条"
+    elif candidate.mechanism_pair in {"A+B", "B+C"}:
+        relation = "覆盖课题链条中的优先双机制，可直接用于装置或无线读出方案参考"
+    else:
+        relation = "仅属可迁移机制参考，尚缺击穿放电或无线读出环节"
+    return f"摘要证据：{evidence_text}。相关性判断：{relation}。"
 
 
 def feedback_buttons(paper_id: str, doi: str, title: str) -> str:
@@ -777,7 +812,7 @@ def render_html(recommended, query_counts, output_path):
             f"<td>{idx}</td>"
             f"<td>{html.escape(c.level)}</td>"
             f'<td class="title-cell">{title}</td>'
-            f'<td class="abstract-cell">{html.escape(c.abstract or "未获取到摘要")}</td>'
+            f'<td class="abstract-cell">{html.escape(c.abstract_zh or c.abstract or "未获取到摘要")}</td>'
             f'<td class="venue-cell">{html.escape(c.venue)}</td>'
             f"<td>{html.escape(c.date[:4])}</td>"
             f"<td>{html.escape(c.mechanism_pair)}</td>"
@@ -819,6 +854,11 @@ def render_html(recommended, query_counts, output_path):
         if os.environ.get("RADAR_FEEDBACK_ENDPOINT", "").strip()
         else "反馈接收端未配置；按钮仅保留当前浏览器中的选择，不会自动回写项目。"
     )
+    translation_notice = (
+        "摘要列优先显示 DeepL 中文译文；原始英文摘要保留在 JSON 结果中。"
+        if os.environ.get("RADAR_TRANSLATE_ABSTRACTS", "0").strip().lower() in {"1", "true", "yes"}
+        else "摘要翻译未启用；摘要列显示数据源原文。"
+    )
     doc = f"""<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -849,13 +889,16 @@ def render_html(recommended, query_counts, output_path):
     .feedback button.active,
     .feedback.has-selection button.active {{ color:var(--active-ink); background:var(--active-bg); border-color:var(--active-border); font-weight:700; box-shadow:0 0 0 2px var(--active-border) inset; }}
     .feedback-status {{ display:block; min-height:18px; margin-top:2px; color:#415064; }}
+    .feedback-tools {{ margin:12px 0; }}
+    .feedback-tools button {{ border:1px solid #64748b; background:#fff; color:#18212f; padding:6px 10px; border-radius:4px; cursor:pointer; }}
   </style>
 </head>
 <body>
   <h1>{html.escape(window_label)}击穿放电无线传感顶刊/IEEE 定向核查</h1>
   <p>报告 ID：{REPORT_ID}｜窗口：{START.isoformat()} 至 {TODAY.isoformat()}</p>
-  <div class="notice">只展示通过严格门槛的推荐论文；非推荐样例不再列出。机制筛选按 A=自供能/摩擦/triboelectric 激发、B=击穿放电/电磁波生成、C=无线通信/传感/可穿戴系统功能执行，优先 A+B/B+C，A+C 降权且仅在 S 级顶刊和 IEEE Transactions 例外。{venue_rule} 检索源为 OpenAlex public API，并在配置 API key 时用 Semantic Scholar、Springer Nature Meta API 与 Elsevier API 补全 DOI 摘要/引用元数据；结论为元数据/摘要层面初筛。{html.escape(feedback_notice)}</div>
+  <div class="notice">只展示通过严格门槛的推荐论文；非推荐样例不再列出。机制筛选按 A=自供能/摩擦/triboelectric 激发、B=击穿放电/电磁波生成、C=无线通信/传感/可穿戴系统功能执行，优先 A+B/B+C，A+C 降权且仅在 S 级顶刊和 IEEE Transactions 例外。{venue_rule} 检索源为 OpenAlex public API，并在配置 API key 时用 Semantic Scholar、Springer Nature Meta API 与 Elsevier API 补全 DOI 摘要/引用元数据；结论为元数据/摘要层面初筛。{html.escape(translation_notice)}{html.escape(feedback_notice)}</div>
   <p>推荐数量：{len(recommended)}；其中 S/A/IEEE 优先 venue：{priority_count}；已见去重隐藏：{seen_filtered_count}。去重索引：{html.escape(str(seen_index_path))}</p>
+  <div class="feedback-tools"><button id="export-feedback" type="button">导出本期反馈 JSON</button></div>
   <div class="table-shell">
     <div class="table-scroll-top" aria-label="表格横向滚动条"><div></div></div>
     <div class="table-sticky-head" aria-hidden="true"><table>{colgroup}{header_row}</table></div>
@@ -937,6 +980,23 @@ def render_html(recommended, query_counts, output_path):
           markSelection(cell, button.dataset.action || "", "已恢复当前浏览器中的反馈：" + (actionLabels[button.dataset.action] || button.textContent.trim()));
         }}
       }} catch (_) {{}}
+    }});
+    const exportButton = document.getElementById("export-feedback");
+    if (exportButton) exportButton.addEventListener("click", () => {{
+      const events = [];
+      document.querySelectorAll(".feedback").forEach((cell) => {{
+        const storageKey = "radar-feedback:{REPORT_ID}:" + (cell.dataset.doi || cell.dataset.paperId || "");
+        let action = "";
+        try {{ action = localStorage.getItem(storageKey) || ""; }} catch (_) {{}}
+        if (!action) return;
+        events.push({{report_id:"{REPORT_ID}", paper_id:cell.dataset.paperId || "", doi:cell.dataset.doi || "", title_hash:cell.dataset.titleHash || "", action, timestamp:new Date().toISOString()}});
+      }});
+      const blob = new Blob([JSON.stringify({{events}}, null, 2)], {{type:"application/json"}});
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "radar_feedback_{TODAY.isoformat()}.json";
+      link.click();
+      URL.revokeObjectURL(link.href);
     }});
   }})();
 </script>
@@ -1051,7 +1111,9 @@ def main():
     except ValueError:
         recommendation_limit = 10
     recommended = recommended[:recommendation_limit]
-    seen_update = update_seen_index(quality_allowed, REPORT_ID)
+    translation_stats = translate_abstracts(recommended)
+    # Only papers actually shown/sent are marked seen. Eligible overflow remains available later.
+    seen_update = update_seen_index(recommended, REPORT_ID)
 
     payload = {
         "report_id": REPORT_ID,
@@ -1067,6 +1129,7 @@ def main():
         "seen_filtered_count": len(seen_filtered),
         "seen_index": seen_update,
         "feedback_learning": feedback_learning,
+        "abstract_translation": translation_stats,
         "quality_gate": {
             "mode": CAS_PARTITION_MODE,
             "table": str(CAS_PARTITION_TABLE),
@@ -1112,6 +1175,12 @@ def main():
     print(f"CAS partition mode: {CAS_PARTITION_MODE} table={CAS_PARTITION_TABLE}")
     print(f"Recommended: {len(recommended)}")
     print(f"Eligible before report limit: {eligible_recommended_count}; report limit: {recommendation_limit}")
+    print(
+        "Abstract translation: "
+        f"enabled={translation_stats['enabled']} available={translation_stats['available']} "
+        f"requested={translation_stats['requested']} translated={translation_stats['translated']}"
+        + (f" error={translation_stats['error']}" if translation_stats['error'] else "")
+    )
     print(f"Top/strong recommended: {payload['top_venue_recommended_count']}")
     print(
         "Semantic Scholar enrichment: "

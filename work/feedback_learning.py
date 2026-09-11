@@ -3,8 +3,16 @@ import re
 from radar_state import candidate_identity, feedback_action
 
 
-POSITIVE_ACTIONS = {"extremely_related", "related"}
+POSITIVE_ACTIONS = {"extremely_related", "related", "reference_only"}
 NEGATIVE_ACTIONS = {"irrelevant", "wrong", "less"}
+ACTION_WEIGHT = {
+    "extremely_related": 1.0,
+    "related": 0.8,
+    "reference_only": 0.5,
+    "irrelevant": 1.0,
+    "wrong": 1.0,
+    "less": 0.8,
+}
 STOPWORDS = {
     "about",
     "based",
@@ -72,7 +80,7 @@ def apply_feedback_learning(candidates, seen_index: dict) -> dict:
         positive = 0.0
         negative = 0.0
         for example, action in examples:
-            match = similarity(candidate, example)
+            match = similarity(candidate, example) * ACTION_WEIGHT.get(action, 1.0)
             if action in POSITIVE_ACTIONS:
                 positive = max(positive, match)
             elif action in NEGATIVE_ACTIONS:
@@ -89,9 +97,9 @@ def apply_feedback_learning(candidates, seen_index: dict) -> dict:
         elif negative >= 0.45 and negative > positive:
             delta = -1
             note = "反馈学习：与负反馈样例存在相似机制或题名线索，轻度降权。"
-        elif positive >= 0.65 and positive > negative:
+        elif positive >= 0.45 and positive > negative:
             delta = 1
-            note = "反馈学习：与极其相关/相关样例高度相似，相关性加权。"
+            note = "反馈学习：与极其相关/相关/可参考样例足够相似，相关性加权。"
         if not delta:
             continue
         candidate.relevance = max(0, min(10, candidate.relevance + delta))
