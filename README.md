@@ -4,6 +4,8 @@
 >
 > 面向“基于击穿放电的无线传感技术”的高保守文献雷达。
 
+快速配置与运行请参阅 [中文简明使用说明](USAGE.zh-CN.md)。
+
 ## 中文说明
 
 ### 目标
@@ -695,3 +697,4 @@ The root `SKILL.md` is the skill entrypoint, and `references/` contains the deta
 ### Evidence Boundary
 
 The radar uses metadata, abstracts, DOI pages, and publisher metadata. It does not download paid full text, bypass access restrictions, or treat abstract-level screening as final paper reading.
+
